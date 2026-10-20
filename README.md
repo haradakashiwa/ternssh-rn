@@ -4,7 +4,7 @@ A native mobile client for [ternssh](https://github.com/haradakashiwa/ternssh), 
 
 > **Note**: This is a standalone repository for the ternssh mobile app. The ternssh server lives at [haradakashiwa/ternssh](https://github.com/haradakashiwa/ternssh).
 
-> **Expo Go**: Uses Expo SDK 54, compatible with the App Store / Play Store versions of Expo Go. Scan the QR code from `npm start` to run on your phone.
+> **Expo Go**: Uses Expo SDK 57, compatible with the current App Store / Play Store versions of Expo Go. Scan the QR code from `npm start` to run on your phone.
 
 <p align="center">
   <strong>Connect to multiple ternssh deployments · Manage SSH hosts · Terminal access</strong>
