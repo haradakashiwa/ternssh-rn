@@ -3,19 +3,25 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   Linking,
+  Platform,
+  useColorScheme,
 } from 'react-native';
 import Constants from 'expo-constants';
+import * as Haptics from 'expo-haptics';
 import { useServers } from '../context/ServersContext';
 import type { MainTabScreenProps } from '../navigation/types';
 
 export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
   const { servers, sessions, refreshServers } = useServers();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
 
   const handleClearSessions = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Alert.alert(
       'Clear Sessions',
       'This will clear all session history. Active connections will not be affected.',
@@ -25,7 +31,7 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
           text: 'Clear',
           style: 'destructive',
           onPress: () => {
-            // Sessions are in-memory only, so just refresh
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             Alert.alert('Done', 'Session history cleared.');
           },
         },
@@ -33,80 +39,138 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
     );
   }, []);
 
+  const handleRefresh = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await refreshServers();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [refreshServers]);
+
   const handleOpenDocs = useCallback(() => {
+    Haptics.selectionAsync();
     Linking.openURL('https://ternssh.com/docs/home');
   }, []);
 
   const handleOpenGitHub = useCallback(() => {
+    Haptics.selectionAsync();
     Linking.openURL('https://github.com/haradakashiwa/ternssh');
   }, []);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView 
+      style={[styles.container, isDark && styles.containerDark]} 
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      {/* Statistics Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Statistics</Text>
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{servers.length}</Text>
-            <Text style={styles.statLabel}>Servers</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{sessions.length}</Text>
-            <Text style={styles.statLabel}>Sessions</Text>
+        <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>STATISTICS</Text>
+        <View style={[styles.statsCard, isDark && styles.cardDark]}>
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, isDark && styles.statValueDark]}>{servers.length}</Text>
+              <Text style={[styles.statLabel, isDark && styles.textSecondaryDark]}>Servers</Text>
+            </View>
+            <View style={[styles.statDivider, isDark && styles.statDividerDark]} />
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, isDark && styles.statValueDark]}>{sessions.length}</Text>
+              <Text style={[styles.statLabel, isDark && styles.textSecondaryDark]}>Sessions</Text>
+            </View>
           </View>
         </View>
       </View>
 
+      {/* Data Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Data</Text>
-        <TouchableOpacity style={styles.menuItem} onPress={refreshServers}>
-          <Text style={styles.menuItemText}>Refresh Servers</Text>
-          <Text style={styles.menuItemIcon}>🔄</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={handleClearSessions}>
-          <Text style={[styles.menuItemText, styles.destructiveText]}>Clear Session History</Text>
-          <Text style={styles.menuItemIcon}>🗑️</Text>
-        </TouchableOpacity>
+        <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>DATA</Text>
+        <View style={[styles.menuGroup, isDark && styles.cardDark]}>
+          <Pressable 
+            style={({ pressed }) => [
+              styles.menuItem,
+              isDark && styles.menuItemDark,
+              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
+            ]}
+            android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
+            onPress={handleRefresh}
+          >
+            <Text style={[styles.menuItemText, isDark && styles.textDark]}>Refresh Servers</Text>
+            <Text style={styles.menuItemIcon}>🔄</Text>
+          </Pressable>
+          <View style={[styles.separator, isDark && styles.separatorDark]} />
+          <Pressable 
+            style={({ pressed }) => [
+              styles.menuItem,
+              isDark && styles.menuItemDark,
+              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
+            ]}
+            android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
+            onPress={handleClearSessions}
+          >
+            <Text style={[styles.menuItemText, styles.destructiveText]}>Clear Session History</Text>
+            <Text style={styles.menuItemIcon}>🗑️</Text>
+          </Pressable>
+        </View>
       </View>
 
+      {/* Resources Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Resources</Text>
-        <TouchableOpacity style={styles.menuItem} onPress={handleOpenDocs}>
-          <Text style={styles.menuItemText}>ternssh Documentation</Text>
-          <Text style={styles.menuItemIcon}>📖</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.menuItem} onPress={handleOpenGitHub}>
-          <Text style={styles.menuItemText}>GitHub Repository</Text>
-          <Text style={styles.menuItemIcon}>🔗</Text>
-        </TouchableOpacity>
+        <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>RESOURCES</Text>
+        <View style={[styles.menuGroup, isDark && styles.cardDark]}>
+          <Pressable 
+            style={({ pressed }) => [
+              styles.menuItem,
+              isDark && styles.menuItemDark,
+              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
+            ]}
+            android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
+            onPress={handleOpenDocs}
+          >
+            <Text style={[styles.menuItemText, isDark && styles.textDark]}>ternssh Documentation</Text>
+            <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
+          </Pressable>
+          <View style={[styles.separator, isDark && styles.separatorDark]} />
+          <Pressable 
+            style={({ pressed }) => [
+              styles.menuItem,
+              isDark && styles.menuItemDark,
+              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
+            ]}
+            android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
+            onPress={handleOpenGitHub}
+          >
+            <Text style={[styles.menuItemText, isDark && styles.textDark]}>GitHub Repository</Text>
+            <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
+          </Pressable>
+        </View>
       </View>
 
+      {/* About Section */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <View style={styles.aboutCard}>
-          <Text style={styles.appName}>ternssh Mobile</Text>
-          <Text style={styles.appVersion}>
+        <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>ABOUT</Text>
+        <View style={[styles.aboutCard, isDark && styles.cardDark]}>
+          <Text style={[styles.appName, isDark && styles.textDark]}>ternssh Mobile</Text>
+          <Text style={[styles.appVersion, isDark && styles.textSecondaryDark]}>
             Version {Constants.expoConfig?.version ?? '1.0.0'}
           </Text>
-          <Text style={styles.appDescription}>
+          <Text style={[styles.appDescription, isDark && styles.textSecondaryDark]}>
             A native mobile client for ternssh, the SSH workspace on Cloudflare.
             Connect to multiple ternssh deployments and manage your SSH hosts on the go.
           </Text>
         </View>
       </View>
 
+      {/* Terminal Info */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Terminal Rendering</Text>
-        <View style={styles.infoCard}>
+        <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>TERMINAL</Text>
+        <View style={[styles.infoCard, isDark && styles.infoCardDark]}>
           <Text style={styles.infoIcon}>ℹ️</Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, isDark && styles.infoTextDark]}>
             The terminal view uses xterm.js in a WebView for accurate terminal emulation.
-            All other app screens use native React Native components for the best mobile experience.
+            All other app screens use native {Platform.OS === 'ios' ? 'iOS' : 'Android'} components.
           </Text>
         </View>
       </View>
 
-      <Text style={styles.footer}>
+      <Text style={[styles.footer, isDark && styles.footerDark]}>
         ternssh is licensed under GPL-3.0-or-later
       </Text>
     </ScrollView>
@@ -116,103 +180,144 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+  },
+  containerDark: {
+    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
   },
   content: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
   section: {
-    marginBottom: 24,
+    marginTop: Platform.select({ ios: 24, android: 16 }),
+    marginHorizontal: 16,
   },
-  sectionTitle: {
+  sectionHeader: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
+    fontWeight: '400',
+    color: '#6D6D72',
+    marginBottom: 8,
+    marginLeft: Platform.select({ ios: 16, android: 0 }),
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 4,
+  },
+  sectionHeaderDark: {
+    color: '#8E8E93',
+  },
+  statsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  cardDark: {
+    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
   },
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    paddingVertical: 20,
   },
   statItem: {
     flex: 1,
     alignItems: 'center',
   },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: '#C6C6C8',
+    marginVertical: 8,
+  },
+  statDividerDark: {
+    backgroundColor: '#38383A',
+  },
   statValue: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '700',
-    color: '#007AFF',
+    color: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
+  },
+  statValueDark: {
+    color: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#8E8E93',
     marginTop: 4,
   },
+  menuGroup: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
   menuItem: {
-    backgroundColor: '#fff',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 44,
+  },
+  menuItemDark: {},
+  menuItemPressed: {
+    backgroundColor: '#E5E5EA',
+  },
+  menuItemPressedDark: {
+    backgroundColor: '#2C2C2E',
   },
   menuItemText: {
-    fontSize: 16,
-    color: '#1a1a1a',
+    fontSize: 17,
+    color: '#000000',
   },
   menuItemIcon: {
     fontSize: 18,
   },
   destructiveText: {
-    color: '#d32f2f',
+    color: Platform.select({ ios: '#FF3B30', android: '#CF6679' }),
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: '#C6C6C8',
+    marginLeft: 16,
+  },
+  separatorDark: {
+    backgroundColor: '#38383A',
+  },
+  chevron: {
+    fontSize: 22,
+    color: '#C7C7CC',
+  },
+  chevronDark: {
+    color: '#48484A',
   },
   aboutCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 20,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
   },
   appName: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: '#000000',
     marginBottom: 4,
   },
   appVersion: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 12,
+    fontSize: 15,
+    color: '#8E8E93',
+    marginBottom: 16,
   },
   appDescription: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 15,
+    color: '#8E8E93',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   infoCard: {
-    backgroundColor: '#e3f2fd',
-    borderRadius: 12,
+    backgroundColor: Platform.select({ ios: '#E3F2FD', android: '#E8EAF6' }),
+    borderRadius: 10,
     padding: 16,
     flexDirection: 'row',
     alignItems: 'flex-start',
+  },
+  infoCardDark: {
+    backgroundColor: Platform.select({ ios: '#1E3A5F', android: '#1A237E' }),
   },
   infoIcon: {
     fontSize: 18,
@@ -222,13 +327,26 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: '#1565c0',
+    color: Platform.select({ ios: '#1565C0', android: '#3F51B5' }),
     lineHeight: 20,
   },
+  infoTextDark: {
+    color: Platform.select({ ios: '#64B5F6', android: '#9FA8DA' }),
+  },
   footer: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: '#8E8E93',
     textAlign: 'center',
-    marginTop: 16,
+    marginTop: 32,
+    marginHorizontal: 16,
+  },
+  footerDark: {
+    color: '#636366',
+  },
+  textDark: {
+    color: '#FFFFFF',
+  },
+  textSecondaryDark: {
+    color: '#8E8E93',
   },
 });

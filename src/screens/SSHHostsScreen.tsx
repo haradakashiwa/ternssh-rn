@@ -1,14 +1,20 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
+  Pressable,
   StyleSheet,
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Platform,
+  ActionSheetIOS,
+  useColorScheme,
 } from 'react-native';
+import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import * as Haptics from 'expo-haptics';
 import { useServers } from '../context/ServersContext';
 import type { RootStackScreenProps } from '../navigation/types';
 import type { TreeNode, SSHHost } from '../types';
@@ -61,6 +67,8 @@ function flattenTree(
 export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHHosts'>) {
   const { serverId } = route.params;
   const { servers, getApiClient } = useServers();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +86,6 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
       const response = await apiClient.getServerTree();
       setTree(response.tree);
       setError(null);
-      // Auto-expand all groups initially
       const allGroupIds = new Set<string>();
       const collectGroups = (nodes: TreeNode[]) => {
         for (const node of nodes) {
@@ -95,11 +102,21 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
     }
   }, [apiClient]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     navigation.setOptions({
       title: server?.name ?? 'SSH Hosts',
+      headerSearchBarOptions: Platform.OS === 'ios' ? {
+        placeholder: 'Search hosts',
+      } : undefined,
+      headerRight: () => (
+        Platform.OS === 'ios' ? (
+          <TouchableOpacity onPress={() => navigation.navigate('AddSSHHost', { serverId })}>
+            <Text style={[styles.headerButton, isDark && styles.headerButtonDark]}>Add</Text>
+          </TouchableOpacity>
+        ) : null
+      ),
     });
-  }, [navigation, server]);
+  }, [navigation, server, serverId, isDark]);
 
   useEffect(() => {
     const load = async () => {
@@ -117,6 +134,7 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
   }, [loadHosts]);
 
   const toggleGroup = useCallback((groupId: string) => {
+    Haptics.selectionAsync();
     setExpandedGroups(prev => {
       const next = new Set(prev);
       if (next.has(groupId)) {
@@ -129,6 +147,7 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
   }, []);
 
   const handleHostPress = useCallback((host: SSHHost) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     navigation.navigate('Terminal', {
       serverId,
       sshHostId: host.id,
@@ -136,188 +155,266 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
     });
   }, [navigation, serverId]);
 
-  const handleHostLongPress = useCallback((host: SSHHost) => {
+  const handleDeleteHost = useCallback(async (host: SSHHost) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
-      host.name,
-      `${host.username}@${host.host}:${host.port}`,
+      'Delete Host',
+      `Are you sure you want to delete "${host.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Connect',
-          onPress: () => handleHostPress(host),
-        },
-        {
-          text: 'Edit',
-          onPress: () => navigation.navigate('EditSSHHost', { serverId, hostId: host.id }),
-        },
-        {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Delete Host',
-              `Are you sure you want to delete "${host.name}"?`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Delete',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      await apiClient?.deleteSSHHost(host.id);
-                      await loadHosts();
-                    } catch (err) {
-                      Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete host');
-                    }
-                  },
-                },
-              ]
-            );
+          onPress: async () => {
+            try {
+              await apiClient?.deleteSSHHost(host.id);
+              await loadHosts();
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'Failed to delete host');
+            }
           },
         },
       ]
     );
-  }, [apiClient, handleHostPress, loadHosts, navigation, serverId]);
+  }, [apiClient, loadHosts]);
+
+  const showHostActions = useCallback((host: SSHHost) => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Connect', 'Edit', 'Delete'],
+          destructiveButtonIndex: 3,
+          cancelButtonIndex: 0,
+          title: host.name,
+          message: `${host.username}@${host.host}:${host.port}`,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) handleHostPress(host);
+          else if (buttonIndex === 2) navigation.navigate('EditSSHHost', { serverId, hostId: host.id });
+          else if (buttonIndex === 3) handleDeleteHost(host);
+        }
+      );
+    } else {
+      Alert.alert(
+        host.name,
+        `${host.username}@${host.host}:${host.port}`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Connect', onPress: () => handleHostPress(host) },
+          { text: 'Edit', onPress: () => navigation.navigate('EditSSHHost', { serverId, hostId: host.id }) },
+          { text: 'Delete', style: 'destructive', onPress: () => handleDeleteHost(host) },
+        ]
+      );
+    }
+  }, [handleHostPress, handleDeleteHost, navigation, serverId]);
+
+  const renderRightActions = useCallback((host: SSHHost) => (
+    <TouchableOpacity
+      style={styles.swipeDeleteButton}
+      onPress={() => handleDeleteHost(host)}
+    >
+      <Text style={styles.swipeDeleteText}>Delete</Text>
+    </TouchableOpacity>
+  ), [handleDeleteHost]);
 
   const flattenedTree = flattenTree(tree, 0, expandedGroups);
 
-  const renderItem = ({ item }: { item: FlattenedNode }) => {
-    const paddingLeft = 16 + item.depth * 20;
+  const renderItem = ({ item, index }: { item: FlattenedNode; index: number }) => {
+    const paddingLeft = 16 + item.depth * 24;
 
     if (item.type === 'group') {
       return (
-        <TouchableOpacity
-          style={[styles.groupRow, { paddingLeft }]}
+        <Pressable
+          style={({ pressed }) => [
+            styles.groupRow,
+            isDark && styles.groupRowDark,
+            pressed && Platform.OS === 'ios' && styles.pressed,
+          ]}
+          android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
           onPress={() => toggleGroup(item.id)}
         >
-          <Text style={styles.groupIcon}>
-            {item.isExpanded ? '📂' : '📁'}
-          </Text>
-          <Text style={styles.groupName}>{item.name}</Text>
-          <Text style={styles.expandIcon}>
-            {item.hasChildren ? (item.isExpanded ? '▼' : '▶') : ''}
-          </Text>
-        </TouchableOpacity>
+          <View style={[styles.groupContent, { paddingLeft }]}>
+            <Text style={[styles.groupIcon, isDark && styles.textDark]}>
+              {item.isExpanded ? '📂' : '📁'}
+            </Text>
+            <Text style={[styles.groupName, isDark && styles.textDark]}>{item.name}</Text>
+            {item.hasChildren && (
+              <Text style={[styles.expandIcon, isDark && styles.expandIconDark]}>
+                {item.isExpanded ? '▼' : '▶'}
+              </Text>
+            )}
+          </View>
+        </Pressable>
       );
     }
 
     const host = item.host!;
-    return (
-      <TouchableOpacity
-        style={[styles.hostRow, { paddingLeft }]}
+    const hostContent = (
+      <Pressable
+        style={({ pressed }) => [
+          styles.hostRow,
+          isDark && styles.hostRowDark,
+          pressed && Platform.OS === 'ios' && styles.pressed,
+        ]}
+        android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
         onPress={() => handleHostPress(host)}
-        onLongPress={() => handleHostLongPress(host)}
+        onLongPress={() => showHostActions(host)}
       >
-        <Text style={styles.hostIcon}>🖥️</Text>
-        <View style={styles.hostInfo}>
-          <Text style={styles.hostName}>{host.name}</Text>
-          <Text style={styles.hostDetails}>
-            {host.username}@{host.host}:{host.port}
-          </Text>
+        <View style={[styles.hostContent, { paddingLeft }]}>
+          <Text style={styles.hostIcon}>🖥️</Text>
+          <View style={styles.hostInfo}>
+            <Text style={[styles.hostName, isDark && styles.textDark]}>{host.name}</Text>
+            <Text style={[styles.hostDetails, isDark && styles.textSecondaryDark]}>
+              {host.username}@{host.host}:{host.port}
+            </Text>
+          </View>
+          <View style={[
+            styles.authBadge,
+            host.auth_type === 'password' 
+              ? (isDark ? styles.authPasswordDark : styles.authPassword)
+              : (isDark ? styles.authKeyDark : styles.authKey)
+          ]}>
+            <Text style={styles.authBadgeText}>
+              {host.auth_type === 'password' ? '🔑' : '🗝️'}
+            </Text>
+          </View>
+          <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
         </View>
-        <View style={[styles.authBadge, host.auth_type === 'password' ? styles.authPassword : styles.authKey]}>
-          <Text style={styles.authBadgeText}>
-            {host.auth_type === 'password' ? '🔑' : '🗝️'}
-          </Text>
-        </View>
-      </TouchableOpacity>
+      </Pressable>
     );
+
+    if (Platform.OS === 'ios') {
+      return (
+        <Swipeable
+          renderRightActions={() => renderRightActions(host)}
+          friction={2}
+          rightThreshold={40}
+        >
+          {hostContent}
+        </Swipeable>
+      );
+    }
+
+    return hostContent;
   };
 
   if (!server) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Server not found</Text>
+      <View style={[styles.centerContainer, isDark && styles.containerDark]}>
+        <Text style={[styles.errorText, isDark && styles.textDark]}>Server not found</Text>
       </View>
     );
   }
 
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text style={styles.loadingText}>Loading hosts...</Text>
+      <View style={[styles.centerContainer, isDark && styles.containerDark]}>
+        <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#007AFF' : '#6200EE'} />
+        <Text style={[styles.loadingText, isDark && styles.textSecondaryDark]}>Loading hosts...</Text>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.centerContainer}>
+      <View style={[styles.centerContainer, isDark && styles.containerDark]}>
         <Text style={styles.errorIcon}>⚠️</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={loadHosts}>
+        <Text style={[styles.errorText, isDark && styles.textDark]}>{error}</Text>
+        <Pressable
+          style={({ pressed }) => [styles.retryButton, pressed && styles.buttonPressed]}
+          onPress={loadHosts}
+        >
           <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <FlatList
-        data={flattenedTree}
-        keyExtractor={(item) => `${item.type}-${item.id}`}
-        renderItem={renderItem}
-        contentContainerStyle={flattenedTree.length === 0 ? styles.emptyContainer : styles.listContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📡</Text>
-            <Text style={styles.emptyTitle}>No SSH Hosts</Text>
-            <Text style={styles.emptyText}>
-              Add an SSH host to connect to remote servers through this ternssh deployment.
-            </Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => navigation.navigate('AddSSHHost', { serverId })}
-            >
-              <Text style={styles.addButtonText}>Add SSH Host</Text>
-            </TouchableOpacity>
-          </View>
-        }
-      />
-      {flattenedTree.length > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => navigation.navigate('AddSSHHost', { serverId })}
-        >
-          <Text style={styles.fabText}>+</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={[styles.container, isDark && styles.containerDark]}>
+        <FlatList
+          data={flattenedTree}
+          keyExtractor={(item) => `${item.type}-${item.id}`}
+          renderItem={renderItem}
+          contentContainerStyle={flattenedTree.length === 0 ? styles.emptyContainer : styles.listContent}
+          contentInsetAdjustmentBehavior="automatic"
+          refreshControl={
+            <RefreshControl 
+              refreshing={refreshing} 
+              onRefresh={onRefresh}
+              tintColor={isDark ? '#0A84FF' : '#007AFF'}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>📡</Text>
+              <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No SSH Hosts</Text>
+              <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+                Add an SSH host to connect to remote servers through this ternssh deployment.
+              </Text>
+              <Pressable
+                style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
+                onPress={() => navigation.navigate('AddSSHHost', { serverId })}
+              >
+                <Text style={styles.addButtonText}>Add SSH Host</Text>
+              </Pressable>
+            </View>
+          }
+        />
+        {Platform.OS === 'android' && flattenedTree.length > 0 && (
+          <Pressable
+            style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate('AddSSHHost', { serverId });
+            }}
+          >
+            <Text style={styles.fabIcon}>+</Text>
+          </Pressable>
+        )}
+      </View>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+  },
+  containerDark: {
+    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
     padding: 32,
   },
   listContent: {
-    paddingVertical: 8,
-    paddingBottom: 80,
+    paddingBottom: 100,
   },
   emptyContainer: {
     flex: 1,
   },
   groupRow: {
+    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#F5F5F5' }),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#C6C6C8',
+  },
+  groupRowDark: {
+    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#2C2C2C' }),
+    borderBottomColor: '#38383A',
+  },
+  groupContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     paddingRight: 16,
-    backgroundColor: '#f0f0f0',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
   },
   groupIcon: {
     fontSize: 18,
@@ -327,20 +424,29 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    color: '#444',
+    color: '#3C3C43',
   },
   expandIcon: {
-    fontSize: 12,
-    color: '#888',
+    fontSize: 10,
+    color: '#8E8E93',
+  },
+  expandIconDark: {
+    color: '#636366',
   },
   hostRow: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E5EA',
+  },
+  hostRowDark: {
+    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
+    borderBottomColor: '#38383A',
+  },
+  hostContent: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
     paddingRight: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
   },
   hostIcon: {
     fontSize: 20,
@@ -350,34 +456,68 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   hostName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '500',
-    color: '#1a1a1a',
+    color: '#000000',
     marginBottom: 2,
   },
   hostDetails: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: 14,
+    color: '#8E8E93',
   },
   authBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 4,
+    borderRadius: 6,
     marginLeft: 8,
   },
   authPassword: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: '#E3F2FD',
+  },
+  authPasswordDark: {
+    backgroundColor: '#1E3A5F',
   },
   authKey: {
-    backgroundColor: '#e8f5e9',
+    backgroundColor: '#E8F5E9',
+  },
+  authKeyDark: {
+    backgroundColor: '#1E3D2E',
   },
   authBadgeText: {
     fontSize: 14,
   },
+  chevron: {
+    fontSize: 22,
+    color: '#C7C7CC',
+    marginLeft: 8,
+  },
+  chevronDark: {
+    color: '#48484A',
+  },
+  pressed: {
+    backgroundColor: '#E5E5EA',
+  },
+  textDark: {
+    color: '#FFFFFF',
+  },
+  textSecondaryDark: {
+    color: '#8E8E93',
+  },
+  swipeDeleteButton: {
+    backgroundColor: '#FF3B30',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+  },
+  swipeDeleteText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 15,
+  },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
+    color: '#8E8E93',
   },
   errorIcon: {
     fontSize: 48,
@@ -385,19 +525,22 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#d32f2f',
+    color: '#FF3B30',
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: Platform.select({ ios: 10, android: 8 }),
+  },
+  buttonPressed: {
+    opacity: 0.8,
   },
   retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
   },
   emptyState: {
@@ -411,48 +554,55 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: '#666',
+    color: '#8E8E93',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 24,
   },
   addButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: Platform.select({ ios: 10, android: 8 }),
   },
   addButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
+  },
+  headerButton: {
+    color: '#007AFF',
+    fontSize: 17,
+  },
+  headerButtonDark: {
+    color: '#0A84FF',
   },
   fab: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
+    right: 16,
+    bottom: 16,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#6200EE',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    elevation: 6,
   },
-  fabText: {
-    fontSize: 28,
-    color: '#fff',
-    fontWeight: '400',
+  fabPressed: {
+    elevation: 12,
+    backgroundColor: '#7C4DFF',
+  },
+  fabIcon: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    fontWeight: '300',
   },
 });

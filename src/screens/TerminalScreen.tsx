@@ -1,18 +1,20 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   Dimensions,
+  Platform,
+  useColorScheme,
   type ScaledSize,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import * as Haptics from 'expo-haptics';
 import { useServers } from '../context/ServersContext';
 import { getCredential } from '../storage/secureStorage';
 import type { RootStackScreenProps } from '../navigation/types';
 
-// Import terminal HTML as a string
 const TERMINAL_HTML = `<!DOCTYPE html>
 <html>
 <head>
@@ -182,6 +184,7 @@ type ConnectionStatus = 'initializing' | 'connecting' | 'connected' | 'error' | 
 export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Terminal'>) {
   const { serverId, sshHostId, sshHostName } = route.params;
   const { servers, getApiClient, addSession, updateSession, removeSession } = useServers();
+  const colorScheme = useColorScheme();
   
   const webViewRef = useRef<WebView<object>>(null);
   const [status, setStatus] = useState<ConnectionStatus>('initializing');
@@ -192,19 +195,28 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
   const server = servers.find(s => s.id === serverId);
   const apiClient = getApiClient(serverId);
 
-  useEffect(() => {
+  const handleDisconnect = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (sessionId) {
+      removeSession(sessionId);
+    }
+    webViewRef.current?.postMessage(JSON.stringify({ type: 'disconnect' }));
+    navigation.goBack();
+  }, [sessionId, removeSession, navigation]);
+
+  useLayoutEffect(() => {
     navigation.setOptions({
       title: sshHostName,
       headerRight: () => (
-        <TouchableOpacity 
+        <Pressable 
           onPress={handleDisconnect}
-          style={styles.headerButton}
+          style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
         >
           <Text style={styles.headerButtonText}>Close</Text>
-        </TouchableOpacity>
+        </Pressable>
       ),
     });
-  }, [navigation, sshHostName]);
+  }, [navigation, sshHostName, handleDisconnect]);
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }: { window: ScaledSize }) => {
@@ -213,14 +225,6 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
     });
     return () => subscription?.remove();
   }, []);
-
-  const handleDisconnect = useCallback(() => {
-    if (sessionId) {
-      removeSession(sessionId);
-    }
-    webViewRef.current?.postMessage(JSON.stringify({ type: 'disconnect' }));
-    navigation.goBack();
-  }, [sessionId, removeSession, navigation]);
 
   const startSession = useCallback(async () => {
     if (!apiClient || !server) {
@@ -232,13 +236,11 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
     try {
       setStatus('connecting');
       
-      // Create session via API
       const response = await apiClient.createSession(sshHostId);
       const wsUrl = apiClient.getTerminalWsUrl(response.sessionId);
       
       setSessionId(response.sessionId);
       
-      // Add session to context
       addSession({
         id: `${serverId}-${response.sessionId}`,
         serverId,
@@ -250,14 +252,11 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
         createdAt: new Date().toISOString(),
       });
 
-      // Build the WebSocket URL with auth
       let finalWsUrl = wsUrl;
       
-      // For basic auth, we need to include credentials in the WebSocket URL
       if (server.authType === 'basic' && server.username) {
         const password = await getCredential(server.id);
         if (password) {
-          // Encode credentials in URL (WebSocket doesn't support custom headers directly)
           const url = new URL(wsUrl);
           url.username = server.username;
           url.password = password;
@@ -265,7 +264,6 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
         }
       }
 
-      // Send connect message to WebView
       webViewRef.current?.postMessage(JSON.stringify({
         type: 'connect',
         wsUrl: finalWsUrl,
@@ -289,6 +287,7 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
           break;
         case 'connected':
           setStatus('connected');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           if (sessionId) {
             updateSession(sessionId, { status: 'open' });
           }
@@ -302,6 +301,7 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
         case 'error':
           setStatus('error');
           setErrorMessage(msg.message ?? 'Connection error');
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           if (sessionId) {
             updateSession(sessionId, { status: 'error' });
           }
@@ -313,9 +313,9 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
   }, [startSession, sessionId, updateSession]);
 
   const handleRetry = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStatus('initializing');
     setErrorMessage(null);
-    // The WebView will send 'ready' message which triggers startSession
     webViewRef.current?.reload();
   }, []);
 
@@ -323,9 +323,12 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>Server not found</Text>
-        <TouchableOpacity style={styles.button} onPress={() => navigation.goBack()}>
+        <Pressable 
+          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]} 
+          onPress={() => navigation.goBack()}
+        >
           <Text style={styles.buttonText}>Go Back</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     );
   }
@@ -357,12 +360,18 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
             <Text style={styles.errorTitle}>Connection Error</Text>
             <Text style={styles.errorMessage}>{errorMessage}</Text>
             <View style={styles.errorButtons}>
-              <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+              <Pressable 
+                style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
+                onPress={handleRetry}
+              >
                 <Text style={styles.retryButtonText}>Retry</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={handleDisconnect}>
+              </Pressable>
+              <Pressable 
+                style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
+                onPress={handleDisconnect}
+              >
                 <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -375,12 +384,18 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
             <Text style={styles.errorTitle}>Disconnected</Text>
             <Text style={styles.errorMessage}>The connection was closed.</Text>
             <View style={styles.errorButtons}>
-              <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+              <Pressable 
+                style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
+                onPress={handleRetry}
+              >
                 <Text style={styles.retryButtonText}>Reconnect</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.closeButton} onPress={handleDisconnect}>
+              </Pressable>
+              <Pressable 
+                style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
+                onPress={handleDisconnect}
+              >
                 <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -398,7 +413,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#1e1e1e',
     padding: 32,
   },
   webView: {
@@ -408,10 +423,15 @@ const styles = StyleSheet.create({
   headerButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
+    borderRadius: 6,
+  },
+  headerButtonPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   headerButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
+    color: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
+    fontSize: 17,
+    fontWeight: '500',
   },
   overlay: {
     position: 'absolute',
@@ -419,7 +439,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -438,57 +458,66 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#fff',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
   errorMessage: {
-    fontSize: 14,
-    color: '#aaa',
+    fontSize: 15,
+    color: '#AAAAAA',
     textAlign: 'center',
     marginBottom: 24,
-    lineHeight: 20,
+    lineHeight: 22,
   },
   errorButtons: {
     flexDirection: 'row',
     gap: 12,
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: Platform.select({ ios: 10, android: 8 }),
+  },
+  retryButtonPressed: {
+    opacity: 0.8,
   },
   retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
   },
   closeButton: {
-    backgroundColor: '#444',
+    backgroundColor: '#444444',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: Platform.select({ ios: 10, android: 8 }),
+  },
+  closeButtonPressed: {
+    backgroundColor: '#555555',
   },
   closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: Platform.select({ ios: 10, android: 8 }),
     marginTop: 16,
   },
+  buttonPressed: {
+    opacity: 0.8,
+  },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontWeight: '600',
   },
   errorText: {
     fontSize: 16,
-    color: '#d32f2f',
+    color: '#FF453A',
     textAlign: 'center',
   },
 });
