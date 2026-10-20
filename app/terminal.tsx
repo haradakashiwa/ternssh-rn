@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,11 @@ import {
   type ScaledSize,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as Symbols from 'expo-symbols';
-import { useServers } from '../context/ServersContext';
-import { getCredential } from '../storage/secureStorage';
-import type { RootStackScreenProps } from '../navigation/types';
+import { useServers } from '../src/context/ServersContext';
+import { getCredential } from '../src/storage/secureStorage';
 
 // iOS Native UI Components
 import {
@@ -23,7 +23,6 @@ import {
   HStack,
   Button,
   Text as SwiftUIText,
-  GlassEffectContainer,
 } from '@expo/ui/swift-ui';
 import {
   padding,
@@ -31,6 +30,7 @@ import {
   foregroundStyle,
   cornerRadius,
   glassEffect,
+  buttonStyle,
 } from '@expo/ui/swift-ui/modifiers';
 
 const TERMINAL_HTML = `<!DOCTYPE html>
@@ -199,8 +199,13 @@ const TERMINAL_HTML = `<!DOCTYPE html>
 
 type ConnectionStatus = 'initializing' | 'connecting' | 'connected' | 'error' | 'disconnected';
 
-export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Terminal'>) {
-  const { serverId, sshHostId, sshHostName } = route.params;
+export default function TerminalScreen() {
+  const router = useRouter();
+  const { serverId, sshHostId, sshHostName } = useLocalSearchParams<{
+    serverId: string;
+    sshHostId: string;
+    sshHostName: string;
+  }>();
   const { servers, getApiClient, addSession, updateSession, removeSession } = useServers();
   const colorScheme = useColorScheme();
   
@@ -211,7 +216,8 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
   const server = servers.find(s => s.id === serverId);
-  const apiClient = getApiClient(serverId);
+  const apiClient = serverId ? getApiClient(serverId) : null;
+  const hostName = sshHostName ?? 'Terminal';
 
   const handleDisconnect = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -219,22 +225,8 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
       removeSession(sessionId);
     }
     webViewRef.current?.postMessage(JSON.stringify({ type: 'disconnect' }));
-    navigation.goBack();
-  }, [sessionId, removeSession, navigation]);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: sshHostName,
-      headerRight: () => (
-        <Pressable 
-          onPress={handleDisconnect}
-          style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
-        >
-          <Text style={styles.headerButtonText}>Close</Text>
-        </Pressable>
-      ),
-    });
-  }, [navigation, sshHostName, handleDisconnect]);
+    router.back();
+  }, [sessionId, removeSession, router]);
 
   useEffect(() => {
     const subscription = Dimensions.addEventListener('change', ({ window }: { window: ScaledSize }) => {
@@ -245,7 +237,7 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
   }, []);
 
   const startSession = useCallback(async () => {
-    if (!apiClient || !server) {
+    if (!apiClient || !server || !sshHostId) {
       setStatus('error');
       setErrorMessage('Server configuration not found');
       return;
@@ -261,8 +253,8 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
       
       addSession({
         id: `${serverId}-${response.sessionId}`,
-        serverId,
-        sshHostId,
+        serverId: serverId!,
+        sshHostId: sshHostId!,
         sessionId: response.sessionId,
         wsUrl: response.wsUrl,
         sftpWsUrl: response.sftpWsUrl,
@@ -339,25 +331,27 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
 
   if (!server) {
     return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Server not found</Text>
-        <Pressable 
-          style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]} 
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>Go Back</Text>
-        </Pressable>
-      </View>
+      <>
+        <Stack.Screen options={{ title: 'Terminal' }} />
+        <View style={styles.centerContainer}>
+          <Text style={styles.errorText}>Server not found</Text>
+          <Pressable 
+            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]} 
+            onPress={() => router.back()}
+          >
+            <Text style={styles.buttonText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </>
     );
   }
 
-  // Render error/disconnected overlay
   const renderOverlay = () => {
     if (status !== 'error' && status !== 'disconnected') return null;
 
     const isError = status === 'error';
     const title = isError ? 'Connection Error' : 'Disconnected';
-    const message = isError ? errorMessage : 'The connection was closed.';
+    const message = isError ? (errorMessage ?? 'Unknown error') : 'The connection was closed.';
     const retryLabel = isError ? 'Retry' : 'Reconnect';
     const iconName = isError ? 'exclamationmark.triangle' : 'cable.connector';
     const iconColor = isError ? '#FF453A' : '#FF9500';
@@ -398,8 +392,17 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
                 {message}
               </SwiftUIText>
               <HStack>
-                <Button label={retryLabel} onPress={handleRetry} />
-                <Button label="Close" role="cancel" onPress={handleDisconnect} />
+                <Button
+                  label={retryLabel}
+                  onPress={handleRetry}
+                  modifiers={[buttonStyle('glassProminent')]}
+                />
+                <Button
+                  label="Close"
+                  role="cancel"
+                  onPress={handleDisconnect}
+                  modifiers={[buttonStyle('glass')]}
+                />
               </HStack>
             </VStack>
           </Host>
@@ -434,26 +437,51 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
   };
 
   return (
-    <View style={styles.container}>
-      <WebView
-        ref={webViewRef}
-        source={{ html: TERMINAL_HTML }}
-        style={[styles.webView, { width: dimensions.width, height: dimensions.height }]}
-        onMessage={handleWebViewMessage}
-        javaScriptEnabled
-        domStorageEnabled
-        originWhitelist={['*']}
-        mixedContentMode="always"
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        scrollEnabled={false}
-        bounces={false}
-        keyboardDisplayRequiresUserAction={false}
-        hideKeyboardAccessoryView
-        textInteractionEnabled
+    <>
+      <Stack.Screen
+        options={{
+          title: hostName,
+          headerStyle: {
+            backgroundColor: '#1e1e1e',
+          },
+          headerTitleStyle: {
+            color: '#FFFFFF',
+          },
+          headerTintColor: Platform.OS === 'ios' ? '#0A84FF' : '#BB86FC',
+          contentStyle: {
+            backgroundColor: '#1e1e1e',
+          },
+          headerRight: () => (
+            <Pressable 
+              onPress={handleDisconnect}
+              style={({ pressed }) => [styles.headerButton, pressed && styles.headerButtonPressed]}
+            >
+              <Text style={styles.headerButtonText}>Close</Text>
+            </Pressable>
+          ),
+        }}
       />
-      {renderOverlay()}
-    </View>
+      <View style={styles.container}>
+        <WebView
+          ref={webViewRef}
+          source={{ html: TERMINAL_HTML }}
+          style={[styles.webView, { width: dimensions.width, height: dimensions.height }]}
+          onMessage={handleWebViewMessage}
+          javaScriptEnabled
+          domStorageEnabled
+          originWhitelist={['*']}
+          mixedContentMode="always"
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          scrollEnabled={false}
+          bounces={false}
+          keyboardDisplayRequiresUserAction={false}
+          hideKeyboardAccessoryView
+          textInteractionEnabled
+        />
+        {renderOverlay()}
+      </View>
+    </>
   );
 }
 
