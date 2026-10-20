@@ -23,6 +23,7 @@ import {
   HStack,
   Button,
   Text as SwiftUIText,
+  Image,
 } from '@expo/ui/swift-ui';
 import {
   padding,
@@ -368,11 +369,10 @@ export default function TerminalScreen() {
                 glassEffect({ glass: { variant: 'regular' } }),
               ]}
             >
-              <Symbols.SymbolView
-                name={iconName}
-                style={{ width: 48, height: 48, marginBottom: 16, alignSelf: 'center' }}
-                tintColor={iconColor}
-                weight="medium"
+              <Image
+                systemName={iconName}
+                color={iconColor}
+                modifiers={[padding({ bottom: 16 })]}
               />
               <SwiftUIText
                 modifiers={[

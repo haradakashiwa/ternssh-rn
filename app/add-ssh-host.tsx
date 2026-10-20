@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import * as Symbols from 'expo-symbols';
 import { useServers } from '../src/context/ServersContext';
 
 // iOS Native UI Components
@@ -24,6 +23,10 @@ import {
   TextField,
   SecureField,
   LabeledContent,
+  Text as SwiftUIText,
+  HStack,
+  Spacer,
+  Image,
   useNativeState,
 } from '@expo/ui/swift-ui';
 import {
@@ -32,7 +35,10 @@ import {
 
 type AuthType = 'password' | 'privateKey';
 const AUTH_OPTIONS: AuthType[] = ['password', 'privateKey'];
-const AUTH_LABELS = ['Password', 'Private Key'];
+const AUTH_LABELS: Record<AuthType, string> = {
+  password: 'Password',
+  privateKey: 'Private Key',
+};
 
 export default function AddSSHHostScreen() {
   const router = useRouter();
@@ -124,7 +130,7 @@ export default function AddSSHHostScreen() {
         <Stack.Screen options={{ title: 'Add SSH Host' }} />
         <Host matchContents={false} style={styles.container}>
           <Form>
-            <Section title="Host Details">
+            <Section header={<SwiftUIText>Host Details</SwiftUIText>}>
               <LabeledContent label="Name">
                 <TextField placeholder="My Server" text={nameState} />
               </LabeledContent>
@@ -139,31 +145,28 @@ export default function AddSSHHostScreen() {
               </LabeledContent>
             </Section>
 
-            <Section title="Authentication">
-              {AUTH_OPTIONS.map((opt, i) => (
-                <Pressable
+            <Section header={<SwiftUIText>Authentication</SwiftUIText>}>
+              {AUTH_OPTIONS.map((opt) => (
+                <Button
                   key={opt}
-                  style={styles.iosFormRow}
                   onPress={() => {
                     Haptics.selectionAsync();
                     setAuthType(opt);
                   }}
                 >
-                  <Text style={[styles.iosLabel, isDark && styles.iosLabelDark]}>{AUTH_LABELS[i]}</Text>
-                  {authType === opt ? (
-                    <Symbols.SymbolView
-                      name="checkmark"
-                      style={{ width: 18, height: 18 }}
-                      tintColor="#007AFF"
-                      weight="semibold"
-                    />
-                  ) : null}
-                </Pressable>
+                  <HStack>
+                    <SwiftUIText>{AUTH_LABELS[opt]}</SwiftUIText>
+                    <Spacer />
+                    {authType === opt ? (
+                      <Image systemName="checkmark" color="#007AFF" />
+                    ) : null}
+                  </HStack>
+                </Button>
               ))}
             </Section>
 
             {authType === 'password' ? (
-              <Section title="Password">
+              <Section header={<SwiftUIText>Password</SwiftUIText>}>
                 <LabeledContent label="Password">
                   <SecureField placeholder="Password" text={passwordState} />
                 </LabeledContent>
@@ -171,7 +174,10 @@ export default function AddSSHHostScreen() {
             ) : null}
 
             {authType === 'privateKey' ? (
-              <Section title="Private Key" footer="Paste your SSH private key here">
+              <Section
+                header={<SwiftUIText>Private Key</SwiftUIText>}
+                footer={<SwiftUIText>Paste your SSH private key here</SwiftUIText>}
+              >
                 <LabeledContent label="Private Key">
                   <TextField 
                     placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" 
@@ -209,7 +215,7 @@ export default function AddSSHHostScreen() {
           <Text style={[styles.cardTitle, isDark && styles.textDark]}>Host Details</Text>
           <View style={styles.divider} />
           
-          <Text style={[styles.inputLabel, isDark && styles.textDark]}>Name</Text>
+          <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Name</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="My Server"
@@ -218,7 +224,7 @@ export default function AddSSHHostScreen() {
             onChangeText={setName}
           />
           
-          <Text style={[styles.inputLabel, isDark && styles.textDark]}>Host</Text>
+          <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Host</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="192.168.1.100"
@@ -228,7 +234,7 @@ export default function AddSSHHostScreen() {
             autoCapitalize="none"
           />
           
-          <Text style={[styles.inputLabel, isDark && styles.textDark]}>Port</Text>
+          <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Port</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="22"
@@ -238,7 +244,7 @@ export default function AddSSHHostScreen() {
             keyboardType="number-pad"
           />
           
-          <Text style={[styles.inputLabel, isDark && styles.textDark]}>Username</Text>
+          <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Username</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="root"
@@ -254,7 +260,7 @@ export default function AddSSHHostScreen() {
           <Text style={[styles.cardTitle, isDark && styles.textDark]}>Authentication</Text>
           <View style={styles.divider} />
           
-          {AUTH_OPTIONS.map((opt, i) => (
+          {AUTH_OPTIONS.map((opt) => (
             <Pressable
               key={opt}
               style={({ pressed }) => [
@@ -269,7 +275,7 @@ export default function AddSSHHostScreen() {
               <View style={[styles.radio, authType === opt && styles.radioSelected]}>
                 {authType === opt ? <View style={styles.radioInner} /> : null}
               </View>
-              <Text style={[styles.radioLabel, isDark && styles.textDark]}>{AUTH_LABELS[i]}</Text>
+              <Text style={[styles.radioLabel, isDark && styles.textDark]}>{AUTH_LABELS[opt]}</Text>
             </Pressable>
           ))}
         </View>
@@ -427,18 +433,7 @@ const styles = StyleSheet.create({
   textDark: {
     color: '#FFFFFF',
   },
-  iosFormRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 11,
-    minHeight: 44,
-  },
-  iosLabel: {
-    fontSize: 17,
-    color: '#000000',
-  },
-  iosLabelDark: {
-    color: '#FFFFFF',
+  textSecondaryDark: {
+    color: '#AAAAAA',
   },
 });

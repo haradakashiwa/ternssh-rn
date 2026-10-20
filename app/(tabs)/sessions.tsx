@@ -26,6 +26,7 @@ import {
   ContentUnavailableView,
   Button,
   ContextMenu,
+  Image,
 } from '@expo/ui/swift-ui';
 import {
   listStyle,
@@ -121,7 +122,7 @@ export default function SessionsScreen() {
             </VStack>
           ) : (
             <List modifiers={[listStyle('insetGrouped')]}>
-              <Section title="Sessions">
+              <Section header={<SwiftUIText>Sessions</SwiftUIText>}>
                 {sessions.map((session) => {
                   const server = servers.find(s => s.id === session.serverId);
                   const canRemove = session.status === 'closed' || session.status === 'error';
@@ -132,9 +133,9 @@ export default function SessionsScreen() {
                   return (
                     <ContextMenu key={session.id}>
                       <ContextMenu.Trigger>
-                        <Pressable onPress={() => handleSessionPress(session)}>
+                        <Button onPress={() => handleSessionPress(session)}>
                           <HStack modifiers={[padding({ vertical: 8 })]}>
-                            <View style={[styles.statusDot, { backgroundColor: getStatusColor(session.status, isDark) }]} />
+                            <Image systemName="circle.fill" color={getStatusColor(session.status, isDark)} />
                             <VStack modifiers={[padding({ leading: 12 })]}>
                               <SwiftUIText modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>
                                 {serverName}
@@ -148,7 +149,7 @@ export default function SessionsScreen() {
                             </VStack>
                             <Spacer />
                           </HStack>
-                        </Pressable>
+                        </Button>
                       </ContextMenu.Trigger>
                       <ContextMenu.Items>
                         <Button

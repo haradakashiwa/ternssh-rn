@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import * as Symbols from 'expo-symbols';
 import { useServers } from '../src/context/ServersContext';
 import { testConnection } from '../src/api/client';
 import { getCredential } from '../src/storage/secureStorage';
@@ -27,6 +26,10 @@ import {
   TextField,
   SecureField,
   LabeledContent,
+  Text as SwiftUIText,
+  HStack,
+  Spacer,
+  Image,
   useNativeState,
 } from '@expo/ui/swift-ui';
 import {
@@ -35,7 +38,11 @@ import {
 
 type AuthType = TernsshServer['authType'];
 const AUTH_OPTIONS: AuthType[] = ['basic', 'access', 'none'];
-const AUTH_LABELS = ['Basic Auth', 'Cloudflare Access', 'None'];
+const AUTH_LABELS: Record<AuthType, string> = {
+  basic: 'Basic Auth',
+  access: 'Cloudflare Access',
+  none: 'None',
+};
 
 export default function EditServerScreen() {
   const router = useRouter();
@@ -175,7 +182,7 @@ export default function EditServerScreen() {
         <Stack.Screen options={{ title: 'Edit Server' }} />
         <Host matchContents={false} style={styles.container}>
           <Form>
-            <Section title="Server Details">
+            <Section header={<SwiftUIText>Server Details</SwiftUIText>}>
               <LabeledContent label="Name">
                 <TextField placeholder="My ternssh Server" text={nameState} />
               </LabeledContent>
@@ -184,31 +191,28 @@ export default function EditServerScreen() {
               </LabeledContent>
             </Section>
 
-            <Section title="Authentication">
-              {AUTH_OPTIONS.map((opt, i) => (
-                <Pressable
+            <Section header={<SwiftUIText>Authentication</SwiftUIText>}>
+              {AUTH_OPTIONS.map((opt) => (
+                <Button
                   key={opt}
-                  style={styles.iosFormRow}
                   onPress={() => {
                     Haptics.selectionAsync();
                     setAuthType(opt);
                   }}
                 >
-                  <Text style={[styles.iosLabel, isDark && styles.iosLabelDark]}>{AUTH_LABELS[i]}</Text>
-                  {authType === opt ? (
-                    <Symbols.SymbolView
-                      name="checkmark"
-                      style={{ width: 18, height: 18 }}
-                      tintColor="#007AFF"
-                      weight="semibold"
-                    />
-                  ) : null}
-                </Pressable>
+                  <HStack>
+                    <SwiftUIText>{AUTH_LABELS[opt]}</SwiftUIText>
+                    <Spacer />
+                    {authType === opt ? (
+                      <Image systemName="checkmark" color="#007AFF" />
+                    ) : null}
+                  </HStack>
+                </Button>
               ))}
             </Section>
 
             {authType === 'basic' ? (
-              <Section title="Credentials">
+              <Section header={<SwiftUIText>Credentials</SwiftUIText>}>
                 <LabeledContent label="Username">
                   <TextField placeholder="admin" text={usernameState} />
                 </LabeledContent>
@@ -251,7 +255,7 @@ export default function EditServerScreen() {
           <Text style={[styles.cardTitle, isDark && styles.textDark]}>Server Details</Text>
           <View style={styles.divider} />
           
-          <Text style={[styles.inputLabel, isDark && styles.textDark]}>Name</Text>
+          <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Name</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="My ternssh Server"
@@ -260,7 +264,7 @@ export default function EditServerScreen() {
             onChangeText={setName}
           />
           
-          <Text style={[styles.inputLabel, isDark && styles.textDark]}>URL</Text>
+          <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>URL</Text>
           <TextInput
             style={[styles.input, isDark && styles.inputDark]}
             placeholder="https://ternssh.example.com"
@@ -277,7 +281,7 @@ export default function EditServerScreen() {
           <Text style={[styles.cardTitle, isDark && styles.textDark]}>Authentication</Text>
           <View style={styles.divider} />
           
-          {AUTH_OPTIONS.map((opt, i) => (
+          {AUTH_OPTIONS.map((opt) => (
             <Pressable
               key={opt}
               style={({ pressed }) => [
@@ -292,7 +296,7 @@ export default function EditServerScreen() {
               <View style={[styles.radio, authType === opt && styles.radioSelected]}>
                 {authType === opt ? <View style={styles.radioInner} /> : null}
               </View>
-              <Text style={[styles.radioLabel, isDark && styles.textDark]}>{AUTH_LABELS[i]}</Text>
+              <Text style={[styles.radioLabel, isDark && styles.textDark]}>{AUTH_LABELS[opt]}</Text>
             </Pressable>
           ))}
         </View>
@@ -303,7 +307,7 @@ export default function EditServerScreen() {
             <Text style={[styles.cardTitle, isDark && styles.textDark]}>Credentials</Text>
             <View style={styles.divider} />
             
-            <Text style={[styles.inputLabel, isDark && styles.textDark]}>Username</Text>
+            <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Username</Text>
             <TextInput
               style={[styles.input, isDark && styles.inputDark]}
               placeholder="admin"
@@ -313,7 +317,7 @@ export default function EditServerScreen() {
               autoCapitalize="none"
             />
             
-            <Text style={[styles.inputLabel, isDark && styles.textDark]}>Password</Text>
+            <Text style={[styles.inputLabel, isDark && styles.textSecondaryDark]}>Password</Text>
             <TextInput
               style={[styles.input, isDark && styles.inputDark]}
               placeholder="Password"
@@ -468,18 +472,7 @@ const styles = StyleSheet.create({
   textDark: {
     color: '#FFFFFF',
   },
-  iosFormRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 11,
-    minHeight: 44,
-  },
-  iosLabel: {
-    fontSize: 17,
-    color: '#000000',
-  },
-  iosLabelDark: {
-    color: '#FFFFFF',
+  textSecondaryDark: {
+    color: '#AAAAAA',
   },
 });

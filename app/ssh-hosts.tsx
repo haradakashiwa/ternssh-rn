@@ -31,6 +31,7 @@ import {
   Spacer,
   ContentUnavailableView,
   ContextMenu,
+  Image,
 } from '@expo/ui/swift-ui';
 import {
   listStyle,
@@ -252,14 +253,10 @@ export default function SSHHostsScreen() {
           options={{
             title: serverTitle,
             headerRight: () => (
-              <Pressable onPress={handleAddHost} hitSlop={10}>
-                <Symbols.SymbolView
-                  name="plus"
-                  style={{ width: 22, height: 22 }}
-                  tintColor={isDark ? '#0A84FF' : '#007AFF'}
-                  weight="semibold"
-                />
-              </Pressable>
+              <Button
+                systemImage="plus"
+                onPress={handleAddHost}
+              />
             ),
           }}
         />
@@ -297,13 +294,13 @@ export default function SSHHostsScreen() {
                 refreshable(onRefresh),
               ]}
             >
-              <Section title="SSH Hosts">
+              <Section header={<SwiftUIText>SSH Hosts</SwiftUIText>}>
                 {filteredTree.map((item) => {
                   if (item.type === 'group') {
                     const groupIcon = item.isExpanded ? '📂' : '📁';
                     const expandIcon = item.isExpanded ? '▼' : '▶';
                     return (
-                      <Pressable key={item.id} onPress={() => toggleGroup(item.id)}>
+                      <Button key={item.id} onPress={() => toggleGroup(item.id)}>
                         <HStack modifiers={[padding({ vertical: 8, leading: item.depth * 16 })]}>
                           <SwiftUIText modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>
                             {`${groupIcon} ${item.name}`}
@@ -313,7 +310,7 @@ export default function SSHHostsScreen() {
                             {expandIcon}
                           </SwiftUIText>
                         </HStack>
-                      </Pressable>
+                      </Button>
                     );
                   }
 
@@ -325,7 +322,7 @@ export default function SSHHostsScreen() {
                     <ContextMenu key={item.id}>
                       <ContextMenu.Trigger>
                         <SwipeActions>
-                          <Pressable onPress={() => handleHostPress(host)}>
+                          <Button onPress={() => handleHostPress(host)}>
                             <HStack modifiers={[padding({ vertical: 4, leading: item.depth * 16 })]}>
                               <VStack>
                                 <SwiftUIText modifiers={[font({ textStyle: 'body', weight: 'medium' })]}>
@@ -340,7 +337,7 @@ export default function SSHHostsScreen() {
                               </VStack>
                               <Spacer />
                             </HStack>
-                          </Pressable>
+                          </Button>
                           <SwipeActions.Actions edge="trailing">
                             <Button
                               label="Delete"

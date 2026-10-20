@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import * as Symbols from 'expo-symbols';
 import { useServers } from '../../src/context/ServersContext';
 import type { TernsshServer } from '../../src/types';
 
@@ -25,6 +24,7 @@ import {
   SwipeActions,
   Button,
   Text as SwiftUIText,
+  Image,
   HStack,
   VStack,
   Spacer,
@@ -94,9 +94,17 @@ export default function ServersScreen() {
 
   if (loading && servers.length === 0) {
     return (
-      <View style={[styles.centerContainer, isDark && styles.containerDark]}>
-        <ActivityIndicator size="large" color={Platform.OS === 'ios' ? '#007AFF' : '#6200EE'} />
-      </View>
+      <>
+        <Stack.Screen
+          options={{
+            title: 'Servers',
+            headerLargeTitle: true,
+          }}
+        />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" />
+        </View>
+      </>
     );
   }
 
@@ -109,14 +117,10 @@ export default function ServersScreen() {
             title: 'Servers',
             headerLargeTitle: true,
             headerRight: () => (
-              <Pressable onPress={handleAddServer} hitSlop={10}>
-                <Symbols.SymbolView
-                  name="plus"
-                  style={{ width: 22, height: 22 }}
-                  tintColor={isDark ? '#0A84FF' : '#007AFF'}
-                  weight="semibold"
-                />
-              </Pressable>
+              <Button
+                systemImage="plus"
+                onPress={handleAddServer}
+              />
             ),
           }}
         />
@@ -154,15 +158,12 @@ export default function ServersScreen() {
                 refreshable(onRefresh),
               ]}
             >
-              <Section title="Servers">
+              <Section>
                 {filteredServers.map((server) => (
                   <ContextMenu key={server.id}>
                     <ContextMenu.Trigger>
                       <SwipeActions>
-                        <Pressable
-                          onPress={() => handleServerPress(server)}
-                          style={styles.listRow}
-                        >
+                        <Button onPress={() => handleServerPress(server)}>
                           <HStack modifiers={[padding({ vertical: 4 })]}>
                             <VStack>
                               <SwiftUIText
@@ -190,8 +191,9 @@ export default function ServersScreen() {
                               </SwiftUIText>
                             </VStack>
                             <Spacer />
+                            <Image systemName="chevron.right" modifiers={[foregroundStyle('tertiary')]} />
                           </HStack>
-                        </Pressable>
+                        </Button>
                         <SwipeActions.Actions edge="trailing">
                           <Button
                             label="Delete"
@@ -243,7 +245,7 @@ export default function ServersScreen() {
           title: 'Servers',
           headerRight: () => (
             <Pressable onPress={handleAddServer} style={styles.androidHeaderButton}>
-              <Text style={[styles.androidHeaderButtonText, isDark && styles.androidHeaderButtonTextDark]}>+</Text>
+              <Text style={styles.androidHeaderButtonText}>+</Text>
             </Pressable>
           ),
         }}
@@ -252,8 +254,8 @@ export default function ServersScreen() {
         {filteredServers.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>🖥️</Text>
-            <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Servers</Text>
-            <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+            <Text style={[styles.emptyTitle, isDark && styles.emptyTitleDark]}>No Servers</Text>
+            <Text style={[styles.emptyText, isDark && styles.emptyTextDark]}>
               Add a ternssh server to get started.
             </Text>
             <Pressable
@@ -337,10 +339,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
-  },
-  listRow: {
-    minHeight: 44,
   },
   listContent: {
     padding: 16,
@@ -362,12 +360,18 @@ const styles = StyleSheet.create({
     color: '#000000',
     marginBottom: 8,
   },
+  emptyTitleDark: {
+    color: '#FFFFFF',
+  },
   emptyText: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#666666',
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 24,
+  },
+  emptyTextDark: {
+    color: '#AAAAAA',
   },
   addButton: {
     backgroundColor: '#6200EE',
@@ -460,8 +464,5 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#6200EE',
     fontWeight: '300',
-  },
-  androidHeaderButtonTextDark: {
-    color: '#BB86FC',
   },
 });
