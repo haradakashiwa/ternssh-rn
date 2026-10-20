@@ -119,7 +119,7 @@ export default function AddSSHHostScreen() {
     } finally {
       setSaving(false);
     }
-  }, [apiClient, authType, router]);
+  }, [apiClient, authType, router, name, host, port, username, password, privateKey]);
 
   const saveButtonLabel = saving ? 'Saving...' : 'Add Host';
 

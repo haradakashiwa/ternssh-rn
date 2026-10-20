@@ -120,7 +120,7 @@ export default function EditServerScreen() {
     } finally {
       setTesting(false);
     }
-  }, [authType]);
+  }, [authType, url, username, password]);
 
   const handleSave = useCallback(async () => {
     if (!serverId) return;
@@ -159,7 +159,7 @@ export default function EditServerScreen() {
     } finally {
       setSaving(false);
     }
-  }, [serverId, authType, updateServer, router]);
+  }, [serverId, authType, updateServer, router, name, url, username, password]);
 
   if (!server) {
     return (

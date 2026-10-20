@@ -169,7 +169,7 @@ export default function EditSSHHostScreen() {
     } finally {
       setSaving(false);
     }
-  }, [apiClient, hostId, authType, router]);
+  }, [apiClient, hostId, authType, router, name, host, port, username, password, privateKey]);
 
   if (loading) {
     return (

@@ -1,22 +1,25 @@
-import { Stack } from 'expo-router';
+import { Stack, ThemeProvider, DarkTheme, DefaultTheme } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, useColorScheme } from 'react-native';
+import { Platform, useColorScheme, PlatformColor } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ServersProvider } from '../src/context/ServersContext';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
 
   return (
     <SafeAreaProvider>
-      <ServersProvider>
-        <Stack
-          screenOptions={{
-            headerLargeTitle: Platform.OS === 'ios',
-            headerLargeTitleShadowVisible: false,
-          }}
-        >
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ServersProvider>
+          <Stack
+            screenOptions={{
+              headerLargeTitle: Platform.OS === 'ios',
+              headerLargeTitleShadowVisible: false,
+              contentStyle: Platform.OS === 'ios' ? {
+                backgroundColor: PlatformColor('systemGroupedBackground'),
+              } : undefined,
+            }}
+          >
           <Stack.Screen
             name="(tabs)"
             options={{ headerShown: false }}
@@ -89,9 +92,10 @@ export default function RootLayout() {
               },
             }}
           />
-        </Stack>
-        <StatusBar style="auto" />
-      </ServersProvider>
+          </Stack>
+          <StatusBar style="auto" />
+        </ServersProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

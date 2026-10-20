@@ -110,7 +110,7 @@ export default function AddServerScreen() {
     } finally {
       setTesting(false);
     }
-  }, [authType]);
+  }, [authType, url, username, password]);
 
   const handleSave = useCallback(async () => {
     const saveName = getName();
@@ -151,7 +151,7 @@ export default function AddServerScreen() {
     } finally {
       setSaving(false);
     }
-  }, [authType, addServer, router]);
+  }, [authType, addServer, router, name, url, username, password]);
 
   const testButtonLabel = testing ? 'Testing...' : 'Test Connection';
   const saveButtonLabel = saving ? 'Saving...' : 'Add Server';
