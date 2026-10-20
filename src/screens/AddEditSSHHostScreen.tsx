@@ -12,11 +12,19 @@ import {
   Platform,
   useColorScheme,
 } from 'react-native';
-import SegmentedControl from '@react-native-segmented-control/segmented-control';
 import * as Haptics from 'expo-haptics';
+import * as Symbols from 'expo-symbols';
 import { useServers } from '../context/ServersContext';
 import type { RootStackScreenProps } from '../navigation/types';
 import type { TreeNode, SSHHost } from '../types';
+
+// iOS Native UI Components
+import {
+  Host,
+  Form,
+  Section,
+  Button,
+} from '@expo/ui/swift-ui';
 
 type AuthType = 'password' | 'private_key';
 const AUTH_OPTIONS: AuthType[] = ['password', 'private_key'];
@@ -157,8 +165,6 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
     }
   }, [mode, hostId, apiClient, name, host, port, username, authType, credential, navigation]);
 
-  const selectedAuthIndex = AUTH_OPTIONS.indexOf(authType);
-
   if (loading) {
     return (
       <View style={[styles.centerContainer, isDark && styles.containerDark]}>
@@ -167,24 +173,136 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
     );
   }
 
+  // iOS: Native SwiftUI Form with RN TextInputs
+  if (Platform.OS === 'ios') {
+    return (
+      <Host matchContents={false} style={styles.container}>
+        <Form>
+          <Section title="Host Details">
+            <View style={styles.iosFormRow}>
+              <Text style={styles.iosLabel}>Name</Text>
+              <TextInput
+                style={styles.iosInput}
+                value={name}
+                onChangeText={setName}
+                placeholder="Production Server"
+                placeholderTextColor="#8E8E93"
+              />
+            </View>
+            <View style={styles.iosFormRow}>
+              <Text style={styles.iosLabel}>Host</Text>
+              <TextInput
+                style={styles.iosInput}
+                value={host}
+                onChangeText={setHost}
+                placeholder="192.168.1.100"
+                placeholderTextColor="#8E8E93"
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.iosFormRow}>
+              <Text style={styles.iosLabel}>Port</Text>
+              <TextInput
+                style={styles.iosInput}
+                value={port}
+                onChangeText={setPort}
+                placeholder="22"
+                placeholderTextColor="#8E8E93"
+                keyboardType="number-pad"
+              />
+            </View>
+            <View style={styles.iosFormRow}>
+              <Text style={styles.iosLabel}>Username</Text>
+              <TextInput
+                style={styles.iosInput}
+                value={username}
+                onChangeText={setUsername}
+                placeholder="root"
+                placeholderTextColor="#8E8E93"
+                autoCapitalize="none"
+              />
+            </View>
+          </Section>
+
+          <Section title="Authentication">
+            {AUTH_OPTIONS.map((opt, i) => (
+              <Pressable
+                key={opt}
+                style={styles.iosFormRow}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setAuthType(opt);
+                }}
+              >
+                <Text style={styles.iosLabel}>{AUTH_LABELS[i]}</Text>
+                {authType === opt && (
+                  <Symbols.SymbolView
+                    name="checkmark"
+                    style={{ width: 18, height: 18 }}
+                    tintColor="#007AFF"
+                    weight="semibold"
+                  />
+                )}
+              </Pressable>
+            ))}
+          </Section>
+
+          <Section 
+            title={authType === 'password' ? 'Password' : 'Private Key'}
+            footer={mode === 'edit' ? `Leave empty to keep the existing ${authType === 'password' ? 'password' : 'key'}` : undefined}
+          >
+            {authType === 'password' ? (
+              <View style={styles.iosFormRow}>
+                <TextInput
+                  style={[styles.iosInput, { textAlign: 'left' }]}
+                  value={credential}
+                  onChangeText={setCredential}
+                  placeholder="Enter password"
+                  placeholderTextColor="#8E8E93"
+                  secureTextEntry
+                />
+              </View>
+            ) : (
+              <TextInput
+                style={styles.iosMultilineInput}
+                value={credential}
+                onChangeText={setCredential}
+                placeholder="Paste your private key here..."
+                placeholderTextColor="#8E8E93"
+                multiline
+                numberOfLines={6}
+                textAlignVertical="top"
+              />
+            )}
+          </Section>
+
+          <Section>
+            <Button 
+              label={saving ? "Saving..." : (mode === 'add' ? 'Add SSH Host' : 'Save Changes')}
+              onPress={handleSave}
+            />
+          </Section>
+        </Form>
+      </Host>
+    );
+  }
+
+  // Android: Material Design
   return (
     <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={undefined}
       style={[styles.container, isDark && styles.containerDark]}
     >
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
-        contentInsetAdjustmentBehavior="automatic"
       >
         {/* Host Details Section */}
         <View style={styles.section}>
-          {Platform.OS === 'ios' && (
-            <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>HOST DETAILS</Text>
-          )}
+          <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>HOST DETAILS</Text>
           <View style={[styles.formGroup, isDark && styles.formGroupDark]}>
-            <View style={[styles.formRow, isDark && styles.formRowDark]}>
+            <View style={styles.formRow}>
               <Text style={[styles.label, isDark && styles.labelDark]}>Name</Text>
               <TextInput
                 style={[styles.input, isDark && styles.inputDark]}
@@ -195,7 +313,7 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
               />
             </View>
             <View style={[styles.separator, isDark && styles.separatorDark]} />
-            <View style={[styles.formRow, isDark && styles.formRowDark]}>
+            <View style={styles.formRow}>
               <Text style={[styles.label, isDark && styles.labelDark]}>Host</Text>
               <TextInput
                 style={[styles.input, isDark && styles.inputDark]}
@@ -205,11 +323,10 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
                 placeholderTextColor={isDark ? '#636366' : '#C7C7CC'}
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="url"
               />
             </View>
             <View style={[styles.separator, isDark && styles.separatorDark]} />
-            <View style={[styles.formRow, isDark && styles.formRowDark]}>
+            <View style={styles.formRow}>
               <Text style={[styles.label, isDark && styles.labelDark]}>Port</Text>
               <TextInput
                 style={[styles.input, isDark && styles.inputDark]}
@@ -221,7 +338,7 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
               />
             </View>
             <View style={[styles.separator, isDark && styles.separatorDark]} />
-            <View style={[styles.formRow, isDark && styles.formRowDark]}>
+            <View style={styles.formRow}>
               <Text style={[styles.label, isDark && styles.labelDark]}>Username</Text>
               <TextInput
                 style={[styles.input, isDark && styles.inputDark]}
@@ -238,33 +355,34 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
 
         {/* Authentication Section */}
         <View style={styles.section}>
-          {Platform.OS === 'ios' && (
-            <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>AUTHENTICATION</Text>
-          )}
-          <View style={[styles.formGroup, isDark && styles.formGroupDark, styles.segmentContainer]}>
-            <SegmentedControl
-              values={AUTH_LABELS}
-              selectedIndex={selectedAuthIndex}
-              onChange={(event) => {
-                Haptics.selectionAsync();
-                setAuthType(AUTH_OPTIONS[event.nativeEvent.selectedSegmentIndex]);
-              }}
-              style={styles.segmentedControl}
-              appearance={isDark ? 'dark' : 'light'}
-            />
+          <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>AUTHENTICATION</Text>
+          <View style={[styles.formGroup, isDark && styles.formGroupDark]}>
+            {AUTH_OPTIONS.map((opt, i) => (
+              <React.Fragment key={opt}>
+                {i > 0 && <View style={[styles.separator, isDark && styles.separatorDark]} />}
+                <Pressable
+                  style={styles.radioRow}
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    setAuthType(opt);
+                  }}
+                >
+                  <Text style={[styles.radioLabel, isDark && styles.labelDark]}>{AUTH_LABELS[i]}</Text>
+                  <View style={[styles.radio, authType === opt && styles.radioSelected]} />
+                </Pressable>
+              </React.Fragment>
+            ))}
           </View>
         </View>
 
         {/* Credential Section */}
         <View style={styles.section}>
-          {Platform.OS === 'ios' && (
-            <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>
-              {authType === 'password' ? 'PASSWORD' : 'PRIVATE KEY'}
-            </Text>
-          )}
+          <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>
+            {authType === 'password' ? 'PASSWORD' : 'PRIVATE KEY'}
+          </Text>
           <View style={[styles.formGroup, isDark && styles.formGroupDark]}>
             {authType === 'password' ? (
-              <View style={[styles.formRow, isDark && styles.formRowDark]}>
+              <View style={styles.formRow}>
                 <TextInput
                   style={[styles.inputFull, isDark && styles.inputDark]}
                   value={credential}
@@ -297,11 +415,7 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
         {/* Save Button */}
         <View style={styles.buttonSection}>
           <Pressable
-            style={({ pressed }) => [
-              styles.button,
-              styles.saveButton,
-              pressed && styles.saveButtonPressed,
-            ]}
+            style={({ pressed }) => [styles.button, styles.saveButton, pressed && styles.saveButtonPressed]}
             onPress={handleSave}
             disabled={saving}
           >
@@ -322,10 +436,10 @@ function SSHHostForm({ mode, serverId, hostId, navigation }: SSHHostFormProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+    backgroundColor: Platform.select({ ios: undefined, android: '#FAFAFA' }),
   },
   containerDark: {
-    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
+    backgroundColor: '#121212',
   },
   centerContainer: {
     flex: 1,
@@ -339,15 +453,14 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   section: {
-    marginTop: Platform.select({ ios: 24, android: 16 }),
-    marginHorizontal: Platform.select({ ios: 16, android: 16 }),
+    marginTop: 16,
+    marginHorizontal: 16,
   },
   sectionHeader: {
     fontSize: 13,
     fontWeight: '400',
     color: '#6D6D72',
     marginBottom: 8,
-    marginLeft: 16,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -356,11 +469,12 @@ const styles = StyleSheet.create({
   },
   formGroup: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    elevation: 2,
   },
   formGroupDark: {
-    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
+    backgroundColor: '#1E1E1E',
   },
   formRow: {
     flexDirection: 'row',
@@ -369,14 +483,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minHeight: 44,
   },
-  formRowDark: {},
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#C6C6C8',
+    backgroundColor: '#E0E0E0',
     marginLeft: 16,
   },
   separatorDark: {
-    backgroundColor: '#38383A',
+    backgroundColor: '#383838',
   },
   label: {
     fontSize: 17,
@@ -402,7 +515,7 @@ const styles = StyleSheet.create({
   },
   multilineInput: {
     fontSize: 14,
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
+    fontFamily: 'monospace',
     color: '#000000',
     padding: 16,
     minHeight: 140,
@@ -417,32 +530,75 @@ const styles = StyleSheet.create({
   footerDark: {
     color: '#8E8E93',
   },
-  segmentContainer: {
-    padding: 12,
+  radioRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 44,
   },
-  segmentedControl: {
-    height: 32,
+  radioLabel: {
+    fontSize: 17,
+    color: '#000000',
+  },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#6200EE',
+  },
+  radioSelected: {
+    backgroundColor: '#6200EE',
   },
   buttonSection: {
     marginTop: 32,
     marginHorizontal: 16,
   },
   button: {
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
+    borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 50,
   },
   saveButton: {
-    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
+    backgroundColor: '#6200EE',
+    elevation: 2,
   },
   saveButtonPressed: {
-    backgroundColor: Platform.select({ ios: '#0056B3', android: '#3700B3' }),
+    backgroundColor: '#3700B3',
   },
   saveButtonText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
+  },
+  // iOS native form styles
+  iosFormRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 11,
+    minHeight: 44,
+  },
+  iosLabel: {
+    fontSize: 17,
+    color: '#000000',
+  },
+  iosInput: {
+    flex: 1,
+    fontSize: 17,
+    color: '#000000',
+    textAlign: 'right',
+    marginLeft: 16,
+  },
+  iosMultilineInput: {
+    fontSize: 14,
+    fontFamily: 'Menlo',
+    color: '#000000',
+    padding: 12,
+    minHeight: 140,
   },
 });

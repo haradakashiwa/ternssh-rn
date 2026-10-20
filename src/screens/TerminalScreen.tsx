@@ -10,13 +10,28 @@ import {
   type ScaledSize,
 } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { GlassView, isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-effect';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as Symbols from 'expo-symbols';
 import { useServers } from '../context/ServersContext';
 import { getCredential } from '../storage/secureStorage';
 import type { RootStackScreenProps } from '../navigation/types';
+
+// iOS Native UI Components
+import {
+  Host,
+  VStack,
+  HStack,
+  Button,
+  Text as SwiftUIText,
+  GlassEffectContainer,
+} from '@expo/ui/swift-ui';
+import {
+  padding,
+  font,
+  foregroundStyle,
+  cornerRadius,
+  glassEffect,
+} from '@expo/ui/swift-ui/modifiers';
 
 const TERMINAL_HTML = `<!DOCTYPE html>
 <html>
@@ -184,20 +199,10 @@ const TERMINAL_HTML = `<!DOCTYPE html>
 
 type ConnectionStatus = 'initializing' | 'connecting' | 'connected' | 'error' | 'disconnected';
 
-const useGlassAvailable = () => {
-  if (Platform.OS !== 'ios') return false;
-  try {
-    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
-  } catch {
-    return false;
-  }
-};
-
 export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Terminal'>) {
   const { serverId, sshHostId, sshHostName } = route.params;
   const { servers, getApiClient, addSession, updateSession, removeSession } = useServers();
   const colorScheme = useColorScheme();
-  const glassAvailable = useGlassAvailable();
   
   const webViewRef = useRef<WebView<object>>(null);
   const [status, setStatus] = useState<ConnectionStatus>('initializing');
@@ -346,6 +351,88 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
     );
   }
 
+  // Render error/disconnected overlay
+  const renderOverlay = () => {
+    if (status !== 'error' && status !== 'disconnected') return null;
+
+    const isError = status === 'error';
+    const title = isError ? 'Connection Error' : 'Disconnected';
+    const message = isError ? errorMessage : 'The connection was closed.';
+    const retryLabel = isError ? 'Retry' : 'Reconnect';
+    const iconName = isError ? 'exclamationmark.triangle' : 'cable.connector';
+    const iconColor = isError ? '#FF453A' : '#FF9500';
+
+    // iOS: Glass overlay using native components
+    if (Platform.OS === 'ios') {
+      return (
+        <View style={styles.overlay}>
+          <Host style={styles.overlayContent}>
+            <VStack
+              modifiers={[
+                padding({ all: 28 }),
+                cornerRadius(20),
+                glassEffect({ glass: { variant: 'regular' } }),
+              ]}
+            >
+              <Symbols.SymbolView
+                name={iconName}
+                style={{ width: 48, height: 48, marginBottom: 16, alignSelf: 'center' }}
+                tintColor={iconColor}
+                weight="medium"
+              />
+              <SwiftUIText
+                modifiers={[
+                  font({ textStyle: 'title3', weight: 'semibold' }),
+                  foregroundStyle('primary'),
+                ]}
+              >
+                {title}
+              </SwiftUIText>
+              <SwiftUIText
+                modifiers={[
+                  font({ textStyle: 'body' }),
+                  foregroundStyle('secondary'),
+                  padding({ top: 8, bottom: 24 }),
+                ]}
+              >
+                {message}
+              </SwiftUIText>
+              <HStack>
+                <Button label={retryLabel} onPress={handleRetry} />
+                <Button label="Close" role="cancel" onPress={handleDisconnect} />
+              </HStack>
+            </VStack>
+          </Host>
+        </View>
+      );
+    }
+
+    // Android: Material Design overlay
+    return (
+      <View style={styles.overlay}>
+        <View style={styles.errorBox}>
+          <Text style={styles.errorIcon}>{isError ? '⚠️' : '🔌'}</Text>
+          <Text style={styles.errorTitle}>{title}</Text>
+          <Text style={styles.errorMessage}>{message}</Text>
+          <View style={styles.errorButtons}>
+            <Pressable 
+              style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
+              onPress={handleRetry}
+            >
+              <Text style={styles.retryButtonText}>{retryLabel}</Text>
+            </Pressable>
+            <Pressable 
+              style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
+              onPress={handleDisconnect}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <WebView
@@ -365,158 +452,7 @@ export function TerminalScreen({ navigation, route }: RootStackScreenProps<'Term
         hideKeyboardAccessoryView
         textInteractionEnabled
       />
-      
-      {status === 'error' && (
-        <View style={styles.overlay}>
-          {Platform.OS === 'ios' && glassAvailable ? (
-            <GlassView style={styles.glassErrorBox} glassEffectStyle="regular">
-              <Symbols.SymbolView
-                name="exclamationmark.triangle"
-                style={{ width: 48, height: 48, marginBottom: 16 }}
-                tintColor="#FF453A"
-                weight="medium"
-              />
-              <Text style={styles.errorTitle}>Connection Error</Text>
-              <Text style={styles.errorMessage}>{errorMessage}</Text>
-              <View style={styles.errorButtons}>
-                <Pressable 
-                  style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </Pressable>
-                <Pressable 
-                  style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
-                  onPress={handleDisconnect}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </GlassView>
-          ) : Platform.OS === 'ios' ? (
-            <BlurView intensity={80} tint="dark" style={styles.blurErrorBox}>
-              <Symbols.SymbolView
-                name="exclamationmark.triangle"
-                style={{ width: 48, height: 48, marginBottom: 16 }}
-                tintColor="#FF453A"
-                weight="medium"
-              />
-              <Text style={styles.errorTitle}>Connection Error</Text>
-              <Text style={styles.errorMessage}>{errorMessage}</Text>
-              <View style={styles.errorButtons}>
-                <Pressable 
-                  style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </Pressable>
-                <Pressable 
-                  style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
-                  onPress={handleDisconnect}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </BlurView>
-          ) : (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorIcon}>⚠️</Text>
-              <Text style={styles.errorTitle}>Connection Error</Text>
-              <Text style={styles.errorMessage}>{errorMessage}</Text>
-              <View style={styles.errorButtons}>
-                <Pressable 
-                  style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryButtonText}>Retry</Text>
-                </Pressable>
-                <Pressable 
-                  style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
-                  onPress={handleDisconnect}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-        </View>
-      )}
-
-      {status === 'disconnected' && (
-        <View style={styles.overlay}>
-          {Platform.OS === 'ios' && glassAvailable ? (
-            <GlassView style={styles.glassErrorBox} glassEffectStyle="regular">
-              <Symbols.SymbolView
-                name="cable.connector"
-                style={{ width: 48, height: 48, marginBottom: 16 }}
-                tintColor="#FF9500"
-                weight="medium"
-              />
-              <Text style={styles.errorTitle}>Disconnected</Text>
-              <Text style={styles.errorMessage}>The connection was closed.</Text>
-              <View style={styles.errorButtons}>
-                <Pressable 
-                  style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryButtonText}>Reconnect</Text>
-                </Pressable>
-                <Pressable 
-                  style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
-                  onPress={handleDisconnect}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </GlassView>
-          ) : Platform.OS === 'ios' ? (
-            <BlurView intensity={80} tint="dark" style={styles.blurErrorBox}>
-              <Symbols.SymbolView
-                name="cable.connector"
-                style={{ width: 48, height: 48, marginBottom: 16 }}
-                tintColor="#FF9500"
-                weight="medium"
-              />
-              <Text style={styles.errorTitle}>Disconnected</Text>
-              <Text style={styles.errorMessage}>The connection was closed.</Text>
-              <View style={styles.errorButtons}>
-                <Pressable 
-                  style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryButtonText}>Reconnect</Text>
-                </Pressable>
-                <Pressable 
-                  style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
-                  onPress={handleDisconnect}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </BlurView>
-          ) : (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorIcon}>🔌</Text>
-              <Text style={styles.errorTitle}>Disconnected</Text>
-              <Text style={styles.errorMessage}>The connection was closed.</Text>
-              <View style={styles.errorButtons}>
-                <Pressable 
-                  style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]} 
-                  onPress={handleRetry}
-                >
-                  <Text style={styles.retryButtonText}>Reconnect</Text>
-                </Pressable>
-                <Pressable 
-                  style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]} 
-                  onPress={handleDisconnect}
-                >
-                  <Text style={styles.closeButtonText}>Close</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-        </View>
-      )}
+      {renderOverlay()}
     </View>
   );
 }
@@ -556,24 +492,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  glassErrorBox: {
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center',
+  overlayContent: {
     maxWidth: 320,
     marginHorizontal: 32,
-  },
-  blurErrorBox: {
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center',
-    maxWidth: 320,
-    marginHorizontal: 32,
-    overflow: 'hidden',
   },
   errorBox: {
     backgroundColor: '#2d2d2d',
@@ -605,10 +530,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   retryButton: {
-    backgroundColor: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
+    backgroundColor: '#BB86FC',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
+    borderRadius: 8,
   },
   retryButtonPressed: {
     opacity: 0.8,
@@ -622,7 +547,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#444444',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
+    borderRadius: 8,
   },
   closeButtonPressed: {
     backgroundColor: '#555555',
@@ -636,7 +561,7 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
+    borderRadius: 8,
     marginTop: 16,
   },
   buttonPressed: {

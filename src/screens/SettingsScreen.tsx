@@ -15,6 +15,21 @@ import * as Haptics from 'expo-haptics';
 import { useServers } from '../context/ServersContext';
 import type { MainTabScreenProps } from '../navigation/types';
 
+// iOS Native UI Components
+import {
+  Host,
+  Form,
+  Section,
+  Text as SwiftUIText,
+  HStack,
+  Button,
+  LabeledContent,
+} from '@expo/ui/swift-ui';
+import {
+  font,
+  foregroundStyle,
+} from '@expo/ui/swift-ui/modifiers';
+
 export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
   const { servers, sessions, refreshServers } = useServers();
   const colorScheme = useColorScheme();
@@ -55,11 +70,64 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
     Linking.openURL('https://github.com/haradakashiwa/ternssh');
   }, []);
 
+  // iOS: Native SwiftUI Form
+  if (Platform.OS === 'ios') {
+    return (
+      <Host matchContents={false} style={styles.container}>
+        <Form>
+          <Section title="Statistics">
+            <LabeledContent label="Servers">
+              <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                {servers.length}
+              </SwiftUIText>
+            </LabeledContent>
+            <LabeledContent label="Sessions">
+              <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                {sessions.length}
+              </SwiftUIText>
+            </LabeledContent>
+          </Section>
+
+          <Section title="Data">
+            <Button label="Refresh Servers" systemImage="arrow.clockwise" onPress={handleRefresh} />
+            <Button label="Clear Session History" systemImage="trash" role="destructive" onPress={handleClearSessions} />
+          </Section>
+
+          <Section title="Resources">
+            <Button label="ternssh Documentation" systemImage="book" onPress={handleOpenDocs} />
+            <Button label="GitHub Repository" systemImage="chevron.left.forwardslash.chevron.right" onPress={handleOpenGitHub} />
+          </Section>
+
+          <Section title="About">
+            <LabeledContent label="App">
+              <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                ternssh Mobile
+              </SwiftUIText>
+            </LabeledContent>
+            <LabeledContent label="Version">
+              <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                {Constants.expoConfig?.version ?? '1.0.0'}
+              </SwiftUIText>
+            </LabeledContent>
+          </Section>
+
+          <Section footer="ternssh is licensed under GPL-3.0-or-later">
+            <LabeledContent label="Terminal">
+              <SwiftUIText modifiers={[font({ textStyle: 'caption' }), foregroundStyle('secondary')]}>
+                xterm.js WebView
+              </SwiftUIText>
+            </LabeledContent>
+          </Section>
+        </Form>
+      </Host>
+    );
+  }
+
+  // Android: Material Design
   return (
     <ScrollView 
-      style={[styles.container, isDark && styles.containerDark]} 
+      style={[styles.scrollContainer, isDark && styles.containerDark]} 
       contentContainerStyle={styles.content}
-      contentInsetAdjustmentBehavior="automatic"
     >
       {/* Statistics Section */}
       <View style={styles.section}>
@@ -84,11 +152,7 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
         <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>DATA</Text>
         <View style={[styles.menuGroup, isDark && styles.cardDark]}>
           <Pressable 
-            style={({ pressed }) => [
-              styles.menuItem,
-              isDark && styles.menuItemDark,
-              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
-            ]}
+            style={[styles.menuItem, isDark && styles.menuItemDark]}
             android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
             onPress={handleRefresh}
           >
@@ -97,11 +161,7 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
           </Pressable>
           <View style={[styles.separator, isDark && styles.separatorDark]} />
           <Pressable 
-            style={({ pressed }) => [
-              styles.menuItem,
-              isDark && styles.menuItemDark,
-              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
-            ]}
+            style={[styles.menuItem, isDark && styles.menuItemDark]}
             android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
             onPress={handleClearSessions}
           >
@@ -116,11 +176,7 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
         <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>RESOURCES</Text>
         <View style={[styles.menuGroup, isDark && styles.cardDark]}>
           <Pressable 
-            style={({ pressed }) => [
-              styles.menuItem,
-              isDark && styles.menuItemDark,
-              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
-            ]}
+            style={[styles.menuItem, isDark && styles.menuItemDark]}
             android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
             onPress={handleOpenDocs}
           >
@@ -129,11 +185,7 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
           </Pressable>
           <View style={[styles.separator, isDark && styles.separatorDark]} />
           <Pressable 
-            style={({ pressed }) => [
-              styles.menuItem,
-              isDark && styles.menuItemDark,
-              pressed && (isDark ? styles.menuItemPressedDark : styles.menuItemPressed),
-            ]}
+            style={[styles.menuItem, isDark && styles.menuItemDark]}
             android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
             onPress={handleOpenGitHub}
           >
@@ -153,19 +205,6 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
           </Text>
           <Text style={[styles.appDescription, isDark && styles.textSecondaryDark]}>
             A native mobile client for ternssh, the SSH workspace on Cloudflare.
-            Connect to multiple ternssh deployments and manage your SSH hosts on the go.
-          </Text>
-        </View>
-      </View>
-
-      {/* Terminal Info */}
-      <View style={styles.section}>
-        <Text style={[styles.sectionHeader, isDark && styles.sectionHeaderDark]}>TERMINAL</Text>
-        <View style={[styles.infoCard, isDark && styles.infoCardDark]}>
-          <Text style={styles.infoIcon}>ℹ️</Text>
-          <Text style={[styles.infoText, isDark && styles.infoTextDark]}>
-            The terminal view uses xterm.js in a WebView for accurate terminal emulation.
-            All other app screens use native {Platform.OS === 'ios' ? 'iOS' : 'Android'} components.
           </Text>
         </View>
       </View>
@@ -180,16 +219,19 @@ export function SettingsScreen({ navigation }: MainTabScreenProps<'Settings'>) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+  },
+  scrollContainer: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
   },
   containerDark: {
-    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
+    backgroundColor: '#121212',
   },
   content: {
     paddingBottom: 40,
   },
   section: {
-    marginTop: Platform.select({ ios: 24, android: 16 }),
+    marginTop: 16,
     marginHorizontal: 16,
   },
   sectionHeader: {
@@ -197,7 +239,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#6D6D72',
     marginBottom: 8,
-    marginLeft: Platform.select({ ios: 16, android: 0 }),
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -206,11 +247,12 @@ const styles = StyleSheet.create({
   },
   statsCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    elevation: 2,
   },
   cardDark: {
-    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
+    backgroundColor: '#1E1E1E',
   },
   statsRow: {
     flexDirection: 'row',
@@ -222,19 +264,19 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: StyleSheet.hairlineWidth,
-    backgroundColor: '#C6C6C8',
+    backgroundColor: '#E0E0E0',
     marginVertical: 8,
   },
   statDividerDark: {
-    backgroundColor: '#38383A',
+    backgroundColor: '#383838',
   },
   statValue: {
     fontSize: 34,
     fontWeight: '700',
-    color: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
+    color: '#6200EE',
   },
   statValueDark: {
-    color: Platform.select({ ios: '#0A84FF', android: '#BB86FC' }),
+    color: '#BB86FC',
   },
   statLabel: {
     fontSize: 14,
@@ -243,8 +285,9 @@ const styles = StyleSheet.create({
   },
   menuGroup: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
+    elevation: 2,
   },
   menuItem: {
     flexDirection: 'row',
@@ -255,12 +298,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   menuItemDark: {},
-  menuItemPressed: {
-    backgroundColor: '#E5E5EA',
-  },
-  menuItemPressedDark: {
-    backgroundColor: '#2C2C2E',
-  },
   menuItemText: {
     fontSize: 17,
     color: '#000000',
@@ -269,15 +306,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   destructiveText: {
-    color: Platform.select({ ios: '#FF3B30', android: '#CF6679' }),
+    color: '#CF6679',
   },
   separator: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#C6C6C8',
+    backgroundColor: '#E0E0E0',
     marginLeft: 16,
   },
   separatorDark: {
-    backgroundColor: '#38383A',
+    backgroundColor: '#383838',
   },
   chevron: {
     fontSize: 22,
@@ -288,9 +325,10 @@ const styles = StyleSheet.create({
   },
   aboutCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 20,
     alignItems: 'center',
+    elevation: 2,
   },
   appName: {
     fontSize: 22,
@@ -308,30 +346,6 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     textAlign: 'center',
     lineHeight: 22,
-  },
-  infoCard: {
-    backgroundColor: Platform.select({ ios: '#E3F2FD', android: '#E8EAF6' }),
-    borderRadius: 10,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  infoCardDark: {
-    backgroundColor: Platform.select({ ios: '#1E3A5F', android: '#1A237E' }),
-  },
-  infoIcon: {
-    fontSize: 18,
-    marginRight: 12,
-    marginTop: 2,
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 14,
-    color: Platform.select({ ios: '#1565C0', android: '#3F51B5' }),
-    lineHeight: 20,
-  },
-  infoTextDark: {
-    color: Platform.select({ ios: '#64B5F6', android: '#9FA8DA' }),
   },
   footer: {
     fontSize: 13,

@@ -13,14 +13,33 @@ import {
   ActionSheetIOS,
   useColorScheme,
 } from 'react-native';
-import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { GlassView, isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-effect';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as Symbols from 'expo-symbols';
 import { useServers } from '../context/ServersContext';
 import type { RootStackScreenProps } from '../navigation/types';
 import type { TreeNode, SSHHost } from '../types';
+
+// iOS Native UI Components
+import {
+  Host,
+  List,
+  Section,
+  SwipeActions,
+  Button,
+  Text as SwiftUIText,
+  HStack,
+  VStack,
+  Spacer,
+  ContentUnavailableView,
+  DisclosureGroup,
+} from '@expo/ui/swift-ui';
+import {
+  listStyle,
+  refreshable,
+  padding,
+  font,
+  foregroundStyle,
+} from '@expo/ui/swift-ui/modifiers';
 
 interface FlattenedNode {
   type: 'group' | 'server';
@@ -31,15 +50,6 @@ interface FlattenedNode {
   isExpanded?: boolean;
   hasChildren?: boolean;
 }
-
-const useGlassAvailable = () => {
-  if (Platform.OS !== 'ios') return false;
-  try {
-    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
-  } catch {
-    return false;
-  }
-};
 
 function flattenTree(
   nodes: TreeNode[],
@@ -81,7 +91,6 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
   const { servers, getApiClient } = useServers();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const glassAvailable = useGlassAvailable();
   
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,9 +127,6 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
   useLayoutEffect(() => {
     navigation.setOptions({
       title: server?.name ?? 'SSH Hosts',
-      headerSearchBarOptions: Platform.OS === 'ios' ? {
-        placeholder: 'Search hosts',
-      } : undefined,
       headerRight: () => (
         Platform.OS === 'ios' ? (
           <TouchableOpacity 
@@ -231,158 +237,7 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
     }
   }, [handleHostPress, handleDeleteHost, navigation, serverId]);
 
-  const renderRightActions = useCallback((host: SSHHost) => (
-    <TouchableOpacity
-      style={styles.swipeDeleteButton}
-      onPress={() => handleDeleteHost(host)}
-    >
-      <Text style={styles.swipeDeleteText}>Delete</Text>
-    </TouchableOpacity>
-  ), [handleDeleteHost]);
-
   const flattenedTree = flattenTree(tree, 0, expandedGroups);
-
-  const renderFloatingButton = () => {
-    const buttonContent = (
-      <>
-        {Platform.OS === 'ios' ? (
-          <Symbols.SymbolView
-            name="plus"
-            style={{ width: 24, height: 24 }}
-            tintColor="#FFFFFF"
-            weight="medium"
-          />
-        ) : (
-          <Text style={styles.fabIcon}>+</Text>
-        )}
-      </>
-    );
-
-    if (Platform.OS === 'ios' && glassAvailable) {
-      return (
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('AddSSHHost', { serverId });
-          }}
-        >
-          <GlassView 
-            style={styles.glassFab} 
-            glassEffectStyle="regular"
-            isInteractive
-          >
-            {buttonContent}
-          </GlassView>
-        </Pressable>
-      );
-    }
-
-    if (Platform.OS === 'ios') {
-      return (
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('AddSSHHost', { serverId });
-          }}
-        >
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.blurFab}>
-            {buttonContent}
-          </BlurView>
-        </Pressable>
-      );
-    }
-
-    return (
-      <Pressable
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          navigation.navigate('AddSSHHost', { serverId });
-        }}
-      >
-        {buttonContent}
-      </Pressable>
-    );
-  };
-
-  const renderItem = ({ item, index }: { item: FlattenedNode; index: number }) => {
-    const paddingLeft = 16 + item.depth * 24;
-
-    if (item.type === 'group') {
-      return (
-        <Pressable
-          style={({ pressed }) => [
-            styles.groupRow,
-            isDark && styles.groupRowDark,
-            pressed && Platform.OS === 'ios' && styles.pressed,
-          ]}
-          android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
-          onPress={() => toggleGroup(item.id)}
-        >
-          <View style={[styles.groupContent, { paddingLeft }]}>
-            <Text style={[styles.groupIcon, isDark && styles.textDark]}>
-              {item.isExpanded ? '📂' : '📁'}
-            </Text>
-            <Text style={[styles.groupName, isDark && styles.textDark]}>{item.name}</Text>
-            {item.hasChildren && (
-              <Text style={[styles.expandIcon, isDark && styles.expandIconDark]}>
-                {item.isExpanded ? '▼' : '▶'}
-              </Text>
-            )}
-          </View>
-        </Pressable>
-      );
-    }
-
-    const host = item.host!;
-    const hostContent = (
-      <Pressable
-        style={({ pressed }) => [
-          styles.hostRow,
-          isDark && styles.hostRowDark,
-          pressed && Platform.OS === 'ios' && styles.pressed,
-        ]}
-        android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
-        onPress={() => handleHostPress(host)}
-        onLongPress={() => showHostActions(host)}
-      >
-        <View style={[styles.hostContent, { paddingLeft }]}>
-          <Text style={styles.hostIcon}>🖥️</Text>
-          <View style={styles.hostInfo}>
-            <Text style={[styles.hostName, isDark && styles.textDark]}>{host.name}</Text>
-            <Text style={[styles.hostDetails, isDark && styles.textSecondaryDark]}>
-              {host.username}@{host.host}:{host.port}
-            </Text>
-          </View>
-          <View style={[
-            styles.authBadge,
-            host.auth_type === 'password' 
-              ? (isDark ? styles.authPasswordDark : styles.authPassword)
-              : (isDark ? styles.authKeyDark : styles.authKey)
-          ]}>
-            <Text style={styles.authBadgeText}>
-              {host.auth_type === 'password' ? '🔑' : '🗝️'}
-            </Text>
-          </View>
-          <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
-        </View>
-      </Pressable>
-    );
-
-    if (Platform.OS === 'ios') {
-      return (
-        <Swipeable
-          renderRightActions={() => renderRightActions(host)}
-          friction={2}
-          rightThreshold={40}
-        >
-          {hostContent}
-        </Swipeable>
-      );
-    }
-
-    return hostContent;
-  };
 
   if (!server) {
     return (
@@ -416,73 +271,241 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
     );
   }
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={[styles.container, isDark && styles.containerDark]}>
-        <FlatList
-          data={flattenedTree}
-          keyExtractor={(item) => `${item.type}-${item.id}`}
-          renderItem={renderItem}
-          contentContainerStyle={flattenedTree.length === 0 ? styles.emptyContainer : styles.listContent}
-          contentInsetAdjustmentBehavior="automatic"
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh}
-              tintColor={isDark ? '#0A84FF' : '#007AFF'}
+  // iOS: Native SwiftUI List
+  if (Platform.OS === 'ios') {
+    if (flattenedTree.length === 0) {
+      return (
+        <Host matchContents={false} style={styles.container}>
+          <VStack modifiers={[padding({ all: 32 })]}>
+            <ContentUnavailableView
+              title="No SSH Hosts"
+              description="Add an SSH host to connect to remote servers."
+              systemImage="desktopcomputer"
             />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📡</Text>
-              <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No SSH Hosts</Text>
-              <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
-                Add an SSH host to connect to remote servers through this ternssh deployment.
-              </Text>
-              <Pressable
-                style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
-                onPress={() => navigation.navigate('AddSSHHost', { serverId })}
-              >
-                <Text style={styles.addButtonText}>Add SSH Host</Text>
-              </Pressable>
-            </View>
-          }
-        />
-        {flattenedTree.length > 0 && renderFloatingButton()}
-      </View>
-    </GestureHandlerRootView>
+            <Button label="Add SSH Host" onPress={() => navigation.navigate('AddSSHHost', { serverId })} />
+          </VStack>
+        </Host>
+      );
+    }
+
+    return (
+      <Host matchContents={false} style={styles.container}>
+        <List
+          modifiers={[
+            listStyle('insetGrouped'),
+            refreshable(onRefresh),
+          ]}
+        >
+          <Section title="SSH Hosts">
+            {flattenedTree.map((item) => {
+              if (item.type === 'group') {
+                return (
+                  <Pressable key={item.id} onPress={() => toggleGroup(item.id)}>
+                    <HStack modifiers={[padding({ vertical: 8, leading: item.depth * 16 })]}>
+                      <SwiftUIText modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>
+                        {item.isExpanded ? '📂' : '📁'} {item.name}
+                      </SwiftUIText>
+                      <Spacer />
+                      <SwiftUIText modifiers={[foregroundStyle('secondary')]}>
+                        {item.isExpanded ? '▼' : '▶'}
+                      </SwiftUIText>
+                    </HStack>
+                  </Pressable>
+                );
+              }
+
+              const host = item.host!;
+              return (
+                <SwipeActions key={item.id}>
+                  <Pressable
+                    onPress={() => handleHostPress(host)}
+                    onLongPress={() => showHostActions(host)}
+                  >
+                    <HStack modifiers={[padding({ vertical: 4, leading: item.depth * 16 })]}>
+                      <VStack>
+                        <SwiftUIText modifiers={[font({ textStyle: 'body', weight: 'medium' })]}>
+                          {host.name}
+                        </SwiftUIText>
+                        <SwiftUIText modifiers={[font({ textStyle: 'caption' }), foregroundStyle('secondary')]}>
+                          {host.username}@{host.host}:{host.port}
+                        </SwiftUIText>
+                        <SwiftUIText modifiers={[font({ textStyle: 'caption2' }), foregroundStyle('tertiary')]}>
+                          {host.auth_type === 'password' ? '🔑 Password' : '🗝️ Private Key'}
+                        </SwiftUIText>
+                      </VStack>
+                      <Spacer />
+                    </HStack>
+                  </Pressable>
+                  <SwipeActions.Actions edge="trailing">
+                    <Button
+                      label="Delete"
+                      systemImage="trash"
+                      role="destructive"
+                      onPress={() => handleDeleteHost(host)}
+                    />
+                    <Button
+                      label="Edit"
+                      systemImage="pencil"
+                      onPress={() => navigation.navigate('EditSSHHost', { serverId, hostId: host.id })}
+                    />
+                  </SwipeActions.Actions>
+                </SwipeActions>
+              );
+            })}
+          </Section>
+        </List>
+      </Host>
+    );
+  }
+
+  // Android: Material Design
+  return (
+    <View style={[styles.container, isDark && styles.containerDark]}>
+      {flattenedTree.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📡</Text>
+          <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No SSH Hosts</Text>
+          <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+            Add an SSH host to connect to remote servers.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.addButton, pressed && styles.buttonPressed]}
+            onPress={() => navigation.navigate('AddSSHHost', { serverId })}
+          >
+            <Text style={styles.addButtonText}>Add SSH Host</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          <FlatList
+            data={flattenedTree}
+            keyExtractor={(item) => `${item.type}-${item.id}`}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh}
+                colors={['#6200EE']}
+              />
+            }
+            renderItem={({ item }) => {
+              if (item.type === 'group') {
+                return (
+                  <Pressable
+                    style={[styles.groupRow, isDark && styles.groupRowDark]}
+                    onPress={() => toggleGroup(item.id)}
+                  >
+                    <View style={[styles.groupContent, { paddingLeft: 16 + item.depth * 24 }]}>
+                      <Text style={[styles.groupIcon, isDark && styles.textDark]}>
+                        {item.isExpanded ? '📂' : '📁'}
+                      </Text>
+                      <Text style={[styles.groupName, isDark && styles.textDark]}>{item.name}</Text>
+                      {item.hasChildren && (
+                        <Text style={[styles.expandIcon, isDark && styles.expandIconDark]}>
+                          {item.isExpanded ? '▼' : '▶'}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              }
+
+              const host = item.host!;
+              return (
+                <Pressable
+                  style={[styles.hostRow, isDark && styles.hostRowDark]}
+                  onPress={() => handleHostPress(host)}
+                  onLongPress={() => showHostActions(host)}
+                  android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
+                >
+                  <View style={[styles.hostContent, { paddingLeft: 16 + item.depth * 24 }]}>
+                    <Text style={styles.hostIcon}>🖥️</Text>
+                    <View style={styles.hostInfo}>
+                      <Text style={[styles.hostName, isDark && styles.textDark]}>{host.name}</Text>
+                      <Text style={[styles.hostDetails, isDark && styles.textSecondaryDark]}>
+                        {host.username}@{host.host}:{host.port}
+                      </Text>
+                    </View>
+                    <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
+                  </View>
+                </Pressable>
+              );
+            }}
+          />
+          <Pressable
+            style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate('AddSSHHost', { serverId });
+            }}
+          >
+            <Text style={styles.fabIcon}>+</Text>
+          </Pressable>
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+    backgroundColor: Platform.select({ ios: undefined, android: '#FAFAFA' }),
   },
   containerDark: {
-    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
+    backgroundColor: '#121212',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
     padding: 32,
   },
   listContent: {
     paddingBottom: 100,
   },
-  emptyContainer: {
+  emptyState: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  addButton: {
+    backgroundColor: '#6200EE',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
   },
   groupRow: {
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#F5F5F5' }),
+    backgroundColor: '#F5F5F5',
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#C6C6C8',
+    borderBottomColor: '#E0E0E0',
   },
   groupRowDark: {
-    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#2C2C2C' }),
-    borderBottomColor: '#38383A',
+    backgroundColor: '#2C2C2C',
+    borderBottomColor: '#383838',
   },
   groupContent: {
     flexDirection: 'row',
@@ -513,8 +536,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E5E5EA',
   },
   hostRowDark: {
-    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
-    borderBottomColor: '#38383A',
+    backgroundColor: '#1E1E1E',
+    borderBottomColor: '#383838',
   },
   hostContent: {
     flexDirection: 'row',
@@ -539,27 +562,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
   },
-  authBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  authPassword: {
-    backgroundColor: '#E3F2FD',
-  },
-  authPasswordDark: {
-    backgroundColor: '#1E3A5F',
-  },
-  authKey: {
-    backgroundColor: '#E8F5E9',
-  },
-  authKeyDark: {
-    backgroundColor: '#1E3D2E',
-  },
-  authBadgeText: {
-    fontSize: 14,
-  },
   chevron: {
     fontSize: 22,
     color: '#C7C7CC',
@@ -568,25 +570,14 @@ const styles = StyleSheet.create({
   chevronDark: {
     color: '#48484A',
   },
-  pressed: {
-    backgroundColor: '#E5E5EA',
+  buttonPressed: {
+    opacity: 0.8,
   },
   textDark: {
     color: '#FFFFFF',
   },
   textSecondaryDark: {
     color: '#8E8E93',
-  },
-  swipeDeleteButton: {
-    backgroundColor: '#FF3B30',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 80,
-  },
-  swipeDeleteText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 15,
   },
   loadingText: {
     marginTop: 12,
@@ -604,80 +595,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
+    backgroundColor: '#6200EE',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
-  },
-  buttonPressed: {
-    opacity: 0.8,
+    borderRadius: 8,
   },
   retryButtonText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  addButton: {
-    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
-  },
-  addButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  headerButton: {
-    color: '#007AFF',
-    fontSize: 17,
-  },
-  headerButtonDark: {
-    color: '#0A84FF',
-  },
-  glassFab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  blurFab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
   },
   fab: {
     position: 'absolute',

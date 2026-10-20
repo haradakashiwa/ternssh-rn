@@ -15,6 +15,25 @@ import { useServers } from '../context/ServersContext';
 import type { MainTabScreenProps } from '../navigation/types';
 import type { TerminalSession } from '../types';
 
+// iOS Native UI Components
+import {
+  Host,
+  List,
+  Section,
+  Text as SwiftUIText,
+  HStack,
+  VStack,
+  Spacer,
+  ContentUnavailableView,
+  Button,
+} from '@expo/ui/swift-ui';
+import {
+  listStyle,
+  padding,
+  font,
+  foregroundStyle,
+} from '@expo/ui/swift-ui/modifiers';
+
 function getStatusColor(status: TerminalSession['status'], isDark: boolean): string {
   switch (status) {
     case 'open': return isDark ? '#30D158' : '#34C759';
@@ -82,77 +101,106 @@ export function SessionsScreen({ navigation }: MainTabScreenProps<'Sessions'>) {
     }
   }, [servers, removeSession]);
 
-  const renderSession = ({ item, index }: { item: TerminalSession; index: number }) => {
-    const server = servers.find(s => s.id === item.serverId);
-    const isFirst = index === 0;
-    const isLast = index === sessions.length - 1;
-    
-    return (
-      <Pressable
-        style={({ pressed }) => [
-          styles.sessionCard,
-          isDark && styles.sessionCardDark,
-          Platform.OS === 'ios' && styles.sessionCardIOS,
-          Platform.OS === 'ios' && isFirst && styles.sessionCardFirst,
-          Platform.OS === 'ios' && isLast && styles.sessionCardLast,
-          Platform.OS === 'android' && styles.sessionCardAndroid,
-          pressed && Platform.OS === 'ios' && styles.pressed,
-        ]}
-        android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
-        onPress={() => handleSessionPress(item)}
-      >
-        <View style={styles.statusIndicator}>
-          <View style={[
-            styles.statusDot, 
-            { backgroundColor: getStatusColor(item.status, isDark) }
-          ]} />
-        </View>
-        <View style={styles.sessionInfo}>
-          <Text style={[styles.serverName, isDark && styles.textDark]}>
-            {server?.name ?? 'Unknown Server'}
-          </Text>
-          <Text style={[styles.sessionStatus, isDark && styles.textSecondaryDark]}>
-            {getStatusText(item.status)}
-          </Text>
-          <Text style={[styles.sessionTime, isDark && styles.textTertiaryDark]}>
-            Started: {new Date(item.createdAt).toLocaleTimeString()}
-          </Text>
-        </View>
-        <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
-      </Pressable>
-    );
-  };
+  // iOS: Native SwiftUI List
+  if (Platform.OS === 'ios') {
+    if (sessions.length === 0) {
+      return (
+        <Host matchContents={false} style={styles.container}>
+          <VStack modifiers={[padding({ all: 32 })]}>
+            <ContentUnavailableView
+              title="No Active Sessions"
+              description="Connect to an SSH host to start a terminal session."
+              systemImage="terminal"
+            />
+            <Button label="Go to Servers" onPress={() => navigation.navigate('Servers')} />
+          </VStack>
+        </Host>
+      );
+    }
 
+    return (
+      <Host matchContents={false} style={styles.container}>
+        <List modifiers={[listStyle('insetGrouped')]}>
+          <Section title="Sessions">
+            {sessions.map((session) => {
+              const server = servers.find(s => s.id === session.serverId);
+              return (
+                <Pressable key={session.id} onPress={() => handleSessionPress(session)}>
+                  <HStack modifiers={[padding({ vertical: 8 })]}>
+                    <View style={[styles.statusDot, { backgroundColor: getStatusColor(session.status, isDark) }]} />
+                    <VStack modifiers={[padding({ leading: 12 })]}>
+                      <SwiftUIText modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}>
+                        {server?.name ?? 'Unknown Server'}
+                      </SwiftUIText>
+                      <SwiftUIText modifiers={[font({ textStyle: 'caption' }), foregroundStyle('secondary')]}>
+                        {getStatusText(session.status)}
+                      </SwiftUIText>
+                      <SwiftUIText modifiers={[font({ textStyle: 'caption2' }), foregroundStyle('tertiary')]}>
+                        Started: {new Date(session.createdAt).toLocaleTimeString()}
+                      </SwiftUIText>
+                    </VStack>
+                    <Spacer />
+                  </HStack>
+                </Pressable>
+              );
+            })}
+          </Section>
+        </List>
+      </Host>
+    );
+  }
+
+  // Android: Material Design
   return (
     <View style={[styles.container, isDark && styles.containerDark]}>
-      <FlatList
-        data={sessions}
-        keyExtractor={(item) => item.id}
-        renderItem={renderSession}
-        contentContainerStyle={[
-          sessions.length === 0 ? styles.emptyContainer : styles.listContent,
-          Platform.OS === 'ios' && styles.listContentIOS,
-        ]}
-        contentInsetAdjustmentBehavior="automatic"
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📟</Text>
-            <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Active Sessions</Text>
-            <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
-              Connect to an SSH host to start a terminal session. Sessions will appear here.
-            </Text>
-            <Pressable
-              style={({ pressed }) => [
-                styles.goButton,
-                pressed && styles.buttonPressed,
-              ]}
-              onPress={() => navigation.navigate('Servers')}
-            >
-              <Text style={styles.goButtonText}>Go to Servers</Text>
-            </Pressable>
-          </View>
-        }
-      />
+      {sessions.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>📟</Text>
+          <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Active Sessions</Text>
+          <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+            Connect to an SSH host to start a terminal session.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.goButton, pressed && styles.buttonPressed]}
+            onPress={() => navigation.navigate('Servers')}
+          >
+            <Text style={styles.goButtonText}>Go to Servers</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <FlatList
+          data={sessions}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item: session }) => {
+            const server = servers.find(s => s.id === session.serverId);
+            return (
+              <Pressable
+                style={[styles.sessionCard, isDark && styles.sessionCardDark]}
+                onPress={() => handleSessionPress(session)}
+                android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
+              >
+                <View style={styles.statusIndicator}>
+                  <View style={[styles.statusDot, { backgroundColor: getStatusColor(session.status, isDark) }]} />
+                </View>
+                <View style={styles.sessionInfo}>
+                  <Text style={[styles.serverName, isDark && styles.textDark]}>
+                    {server?.name ?? 'Unknown Server'}
+                  </Text>
+                  <Text style={[styles.sessionStatus, isDark && styles.textSecondaryDark]}>
+                    {getStatusText(session.status)}
+                  </Text>
+                  <Text style={[styles.sessionTime, isDark && styles.textTertiaryDark]}>
+                    Started: {new Date(session.createdAt).toLocaleTimeString()}
+                  </Text>
+                </View>
+                <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
+              </Pressable>
+            );
+          }}
+          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        />
+      )}
     </View>
   );
 }
@@ -160,49 +208,61 @@ export function SessionsScreen({ navigation }: MainTabScreenProps<'Sessions'>) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+    backgroundColor: Platform.select({ ios: undefined, android: '#FAFAFA' }),
   },
   containerDark: {
-    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
+    backgroundColor: '#121212',
   },
   listContent: {
-    paddingBottom: 20,
+    padding: 16,
   },
-  listContentIOS: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  emptyContainer: {
+  emptyState: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000000',
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  goButton: {
+    backgroundColor: '#6200EE',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  buttonPressed: {
+    opacity: 0.8,
+  },
+  goButtonText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '600',
   },
   sessionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    padding: 16,
     backgroundColor: '#FFFFFF',
-  },
-  sessionCardDark: {
-    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
-  },
-  sessionCardIOS: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#C6C6C8',
-  },
-  sessionCardFirst: {
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  },
-  sessionCardLast: {
-    borderBottomWidth: 0,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-  },
-  sessionCardAndroid: {
-    marginHorizontal: 16,
-    marginTop: 8,
     borderRadius: 12,
     elevation: 2,
+  },
+  sessionCardDark: {
+    backgroundColor: '#1E1E1E',
   },
   statusIndicator: {
     marginRight: 12,
@@ -238,9 +298,6 @@ const styles = StyleSheet.create({
   chevronDark: {
     color: '#48484A',
   },
-  pressed: {
-    backgroundColor: '#E5E5EA',
-  },
   textDark: {
     color: '#FFFFFF',
   },
@@ -249,42 +306,5 @@ const styles = StyleSheet.create({
   },
   textTertiaryDark: {
     color: '#636366',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#000000',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  goButton: {
-    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  goButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
   },
 });

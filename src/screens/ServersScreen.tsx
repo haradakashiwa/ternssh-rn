@@ -13,30 +13,38 @@ import {
   ActionSheetIOS,
   useColorScheme,
 } from 'react-native';
-import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
-import { GlassView, isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-effect';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import * as Symbols from 'expo-symbols';
 import { useServers } from '../context/ServersContext';
 import type { MainTabScreenProps } from '../navigation/types';
 import type { TernsshServer } from '../types';
 
-const useGlassAvailable = () => {
-  if (Platform.OS !== 'ios') return false;
-  try {
-    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
-  } catch {
-    return false;
-  }
-};
+// iOS Native UI Components
+import {
+  Host,
+  List,
+  Section,
+  SwipeActions,
+  Button,
+  Text as SwiftUIText,
+  HStack,
+  VStack,
+  Spacer,
+  ContentUnavailableView,
+} from '@expo/ui/swift-ui';
+import {
+  listStyle,
+  refreshable,
+  padding,
+  font,
+  foregroundStyle,
+} from '@expo/ui/swift-ui/modifiers';
 
 export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
   const { servers, loading, refreshServers, deleteServer } = useServers();
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
-  const glassAvailable = useGlassAvailable();
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -115,150 +123,10 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
     }
   }, [navigation, handleDeleteServer]);
 
-  const renderRightActions = useCallback((server: TernsshServer) => (
-    <TouchableOpacity
-      style={styles.swipeDeleteButton}
-      onPress={() => handleDeleteServer(server)}
-    >
-      <Text style={styles.swipeDeleteText}>Delete</Text>
-    </TouchableOpacity>
-  ), [handleDeleteServer]);
-
-  const renderServer = ({ item, index }: { item: TernsshServer; index: number }) => {
-    const isFirst = index === 0;
-    const isLast = index === servers.length - 1;
-
-    const cardContent = (
-      <View style={[
-        styles.serverCard,
-        isDark && styles.serverCardDark,
-        Platform.OS === 'ios' && styles.serverCardIOS,
-        Platform.OS === 'ios' && isFirst && styles.serverCardFirst,
-        Platform.OS === 'ios' && isLast && styles.serverCardLast,
-        Platform.OS === 'android' && styles.serverCardAndroid,
-      ]}>
-        <View style={styles.serverInfo}>
-          <Text style={[styles.serverName, isDark && styles.textDark]}>{item.name}</Text>
-          <Text style={[styles.serverUrl, isDark && styles.textSecondaryDark]}>{item.url}</Text>
-          <View style={styles.serverMeta}>
-            <View style={[
-              styles.authBadge,
-              item.authType === 'basic' && (isDark ? styles.authBasicDark : styles.authBasic),
-              item.authType === 'access' && (isDark ? styles.authAccessDark : styles.authAccess),
-              item.authType === 'none' && (isDark ? styles.authNoneDark : styles.authNone),
-            ]}>
-              <Text style={[styles.authBadgeText, isDark && styles.authBadgeTextDark]}>
-                {item.authType === 'basic' ? 'Basic Auth' : item.authType === 'access' ? 'Cloudflare Access' : 'No Auth'}
-              </Text>
-            </View>
-          </View>
-        </View>
-        {Platform.OS === 'ios' ? (
-          <Symbols.SymbolView
-            name="chevron.right"
-            style={{ width: 14, height: 14, marginLeft: 8 }}
-            tintColor={isDark ? '#48484A' : '#C7C7CC'}
-            weight="semibold"
-          />
-        ) : (
-          <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
-        )}
-      </View>
-    );
-
-    const pressable = (
-      <Pressable
-        onPress={() => {
-          Haptics.selectionAsync();
-          navigation.navigate('SSHHosts', { serverId: item.id });
-        }}
-        onLongPress={() => showServerActions(item)}
-        android_ripple={Platform.OS === 'android' ? { color: isDark ? '#333' : '#E0E0E0' } : undefined}
-        style={({ pressed }) => [
-          Platform.OS === 'ios' && pressed && styles.pressed,
-        ]}
-      >
-        {cardContent}
-      </Pressable>
-    );
-
-    if (Platform.OS === 'ios') {
-      return (
-        <Swipeable
-          renderRightActions={() => renderRightActions(item)}
-          friction={2}
-          rightThreshold={40}
-        >
-          {pressable}
-        </Swipeable>
-      );
-    }
-
-    return pressable;
-  };
-
-  const renderFloatingButton = () => {
-    const buttonContent = (
-      <>
-        {Platform.OS === 'ios' ? (
-          <Symbols.SymbolView
-            name="plus"
-            style={{ width: 24, height: 24 }}
-            tintColor="#FFFFFF"
-            weight="medium"
-          />
-        ) : (
-          <Text style={styles.fabIcon}>+</Text>
-        )}
-      </>
-    );
-
-    if (Platform.OS === 'ios' && glassAvailable) {
-      return (
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('AddServer');
-          }}
-        >
-          <GlassView 
-            style={styles.glassFab} 
-            glassEffectStyle="regular"
-            isInteractive
-          >
-            {buttonContent}
-          </GlassView>
-        </Pressable>
-      );
-    }
-
-    if (Platform.OS === 'ios') {
-      return (
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            navigation.navigate('AddServer');
-          }}
-        >
-          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.blurFab}>
-            {buttonContent}
-          </BlurView>
-        </Pressable>
-      );
-    }
-
-    return (
-      <Pressable
-        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          navigation.navigate('AddServer');
-        }}
-      >
-        {buttonContent}
-      </Pressable>
-    );
-  };
+  const handleServerPress = useCallback((server: TernsshServer) => {
+    Haptics.selectionAsync();
+    navigation.navigate('SSHHosts', { serverId: server.id });
+  }, [navigation]);
 
   if (loading && servers.length === 0) {
     return (
@@ -268,66 +136,167 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
     );
   }
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={[styles.container, isDark && styles.containerDark]}>
-        <FlatList
-          data={servers}
-          keyExtractor={(item) => item.id}
-          renderItem={renderServer}
-          contentContainerStyle={[
-            servers.length === 0 ? styles.emptyContainer : styles.listContent,
-            Platform.OS === 'ios' && styles.listContentIOS,
-          ]}
-          contentInsetAdjustmentBehavior="automatic"
-          refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh}
-              tintColor={isDark ? '#0A84FF' : '#007AFF'}
+  // iOS: Native SwiftUI List
+  if (Platform.OS === 'ios') {
+    if (servers.length === 0) {
+      return (
+        <Host matchContents={false} style={styles.container}>
+          <VStack modifiers={[padding({ all: 32 })]}>
+            <ContentUnavailableView
+              title="No Servers"
+              description="Add a ternssh server to get started."
+              systemImage="server.rack"
             />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              {Platform.OS === 'ios' ? (
-                <Symbols.SymbolView
-                  name="server.rack"
-                  style={{ width: 64, height: 64, marginBottom: 16 }}
-                  tintColor={isDark ? '#636366' : '#8E8E93'}
-                  weight="light"
-                />
-              ) : (
-                <Text style={styles.emptyIcon}>🖥️</Text>
-              )}
-              <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Servers</Text>
-              <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
-                Add a ternssh server to get started.
-              </Text>
+            <Button label="Add Server" onPress={() => navigation.navigate('AddServer')} />
+          </VStack>
+        </Host>
+      );
+    }
+
+    return (
+      <Host matchContents={false} style={styles.container}>
+        <List
+          modifiers={[
+            listStyle('insetGrouped'),
+            refreshable(onRefresh),
+          ]}
+        >
+          <Section title="Servers">
+            {servers.map((server) => (
+              <SwipeActions key={server.id}>
+                <Pressable
+                  onPress={() => handleServerPress(server)}
+                  onLongPress={() => showServerActions(server)}
+                  style={styles.listRow}
+                >
+                  <HStack modifiers={[padding({ vertical: 4 })]}>
+                    <VStack>
+                      <SwiftUIText
+                        modifiers={[font({ textStyle: 'body', weight: 'semibold' })]}
+                      >
+                        {server.name}
+                      </SwiftUIText>
+                      <SwiftUIText
+                        modifiers={[
+                          font({ textStyle: 'caption' }),
+                          foregroundStyle('secondary'),
+                        ]}
+                      >
+                        {server.url}
+                      </SwiftUIText>
+                      <SwiftUIText
+                        modifiers={[
+                          font({ textStyle: 'caption2' }),
+                          foregroundStyle('tertiary'),
+                          padding({ top: 4 }),
+                        ]}
+                      >
+                        {server.authType === 'basic' ? 'Basic Auth' : 
+                         server.authType === 'access' ? 'Cloudflare Access' : 'No Auth'}
+                      </SwiftUIText>
+                    </VStack>
+                    <Spacer />
+                  </HStack>
+                </Pressable>
+                <SwipeActions.Actions edge="trailing">
+                  <Button
+                    label="Delete"
+                    systemImage="trash"
+                    role="destructive"
+                    onPress={() => handleDeleteServer(server)}
+                  />
+                  <Button
+                    label="Edit"
+                    systemImage="pencil"
+                    onPress={() => navigation.navigate('EditServer', { serverId: server.id })}
+                  />
+                </SwipeActions.Actions>
+              </SwipeActions>
+            ))}
+          </Section>
+        </List>
+      </Host>
+    );
+  }
+
+  // Android: Material Design FlatList
+  return (
+    <View style={[styles.container, isDark && styles.containerDark]}>
+      {servers.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyIcon}>🖥️</Text>
+          <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Servers</Text>
+          <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
+            Add a ternssh server to get started.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.addButton, pressed && styles.addButtonPressed]}
+            onPress={() => navigation.navigate('AddServer')}
+          >
+            <Text style={styles.addButtonText}>Add Server</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          <FlatList
+            data={servers}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh}
+                colors={['#6200EE']}
+              />
+            }
+            renderItem={({ item: server }) => (
               <Pressable
+                onPress={() => handleServerPress(server)}
+                onLongPress={() => showServerActions(server)}
                 style={({ pressed }) => [
-                  styles.addButton,
-                  pressed && styles.addButtonPressed,
+                  styles.serverCard,
+                  isDark && styles.serverCardDark,
+                  pressed && styles.serverCardPressed,
                 ]}
-                onPress={() => navigation.navigate('AddServer')}
+                android_ripple={{ color: isDark ? '#333' : '#E0E0E0' }}
               >
-                <Text style={styles.addButtonText}>Add Server</Text>
+                <View style={styles.serverInfo}>
+                  <Text style={[styles.serverName, isDark && styles.textDark]}>{server.name}</Text>
+                  <Text style={[styles.serverUrl, isDark && styles.textSecondaryDark]}>{server.url}</Text>
+                  <View style={styles.authBadge}>
+                    <Text style={styles.authBadgeText}>
+                      {server.authType === 'basic' ? 'Basic Auth' : 
+                       server.authType === 'access' ? 'Cloudflare Access' : 'No Auth'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
               </Pressable>
-            </View>
-          }
-        />
-        {servers.length > 0 && renderFloatingButton()}
-      </View>
-    </GestureHandlerRootView>
+            )}
+            ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          />
+          <Pressable
+            style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              navigation.navigate('AddServer');
+            }}
+          >
+            <Text style={styles.fabIcon}>+</Text>
+          </Pressable>
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
+    backgroundColor: Platform.select({ ios: undefined, android: '#FAFAFA' }),
   },
   containerDark: {
-    backgroundColor: Platform.select({ ios: '#000000', android: '#121212' }),
+    backgroundColor: '#121212',
   },
   centerContainer: {
     flex: 1,
@@ -335,99 +304,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Platform.select({ ios: '#F2F2F7', android: '#FAFAFA' }),
   },
+  listRow: {
+    minHeight: 44,
+  },
   listContent: {
+    padding: 16,
     paddingBottom: 100,
-  },
-  listContentIOS: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  emptyContainer: {
-    flex: 1,
-  },
-  serverCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-  },
-  serverCardDark: {
-    backgroundColor: Platform.select({ ios: '#1C1C1E', android: '#1E1E1E' }),
-  },
-  serverCardIOS: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#C6C6C8',
-  },
-  serverCardFirst: {
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
-  },
-  serverCardLast: {
-    borderBottomWidth: 0,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-    marginBottom: 16,
-  },
-  serverCardAndroid: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 12,
-    elevation: 2,
-  },
-  serverInfo: {
-    flex: 1,
-  },
-  serverName: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 4,
-  },
-  serverUrl: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 8,
-  },
-  serverMeta: {
-    flexDirection: 'row',
-  },
-  authBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  authBasic: { backgroundColor: '#E3F2FD' },
-  authBasicDark: { backgroundColor: '#1E3A5F' },
-  authAccess: { backgroundColor: '#FFF3E0' },
-  authAccessDark: { backgroundColor: '#4A3728' },
-  authNone: { backgroundColor: '#F5F5F5' },
-  authNoneDark: { backgroundColor: '#2C2C2E' },
-  authBadgeText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#555555',
-  },
-  authBadgeTextDark: { color: '#AAAAAA' },
-  chevron: {
-    fontSize: 22,
-    color: '#C7C7CC',
-    marginLeft: 8,
-  },
-  chevronDark: { color: '#48484A' },
-  pressed: { backgroundColor: '#E5E5EA' },
-  textDark: { color: '#FFFFFF' },
-  textSecondaryDark: { color: '#8E8E93' },
-  swipeDeleteButton: {
-    backgroundColor: '#FF3B30',
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 80,
-  },
-  swipeDeleteText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 15,
   },
   emptyState: {
     flex: 1,
@@ -453,10 +335,10 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   addButton: {
-    backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
+    backgroundColor: '#6200EE',
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 12, android: 8 }),
+    borderRadius: 8,
   },
   addButtonPressed: { opacity: 0.8 },
   addButtonText: {
@@ -464,31 +346,53 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
-  headerButton: {
-    color: '#007AFF',
+  serverCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    elevation: 2,
+  },
+  serverCardDark: {
+    backgroundColor: '#1E1E1E',
+  },
+  serverCardPressed: {
+    opacity: 0.9,
+  },
+  serverInfo: {
+    flex: 1,
+  },
+  serverName: {
     fontSize: 17,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 4,
   },
-  headerButtonDark: { color: '#0A84FF' },
-  glassFab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
+  serverUrl: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 8,
   },
-  blurFab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 100,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+  authBadge: {
+    backgroundColor: '#E8EAF6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  authBadgeText: {
+    fontSize: 12,
+    color: '#3F51B5',
+    fontWeight: '500',
+  },
+  chevron: {
+    fontSize: 22,
+    color: '#CCCCCC',
+    marginLeft: 8,
+  },
+  chevronDark: {
+    color: '#666666',
   },
   fab: {
     position: 'absolute',
@@ -511,4 +415,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '300',
   },
+  textDark: { color: '#FFFFFF' },
+  textSecondaryDark: { color: '#AAAAAA' },
 });
