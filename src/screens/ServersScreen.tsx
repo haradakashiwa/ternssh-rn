@@ -14,23 +14,44 @@ import {
   useColorScheme,
 } from 'react-native';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GlassView, isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-effect';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import * as Symbols from 'expo-symbols';
 import { useServers } from '../context/ServersContext';
 import type { MainTabScreenProps } from '../navigation/types';
 import type { TernsshServer } from '../types';
+
+const useGlassAvailable = () => {
+  if (Platform.OS !== 'ios') return false;
+  try {
+    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
+  } catch {
+    return false;
+  }
+};
 
 export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
   const { servers, loading, refreshServers, deleteServer } = useServers();
   const [refreshing, setRefreshing] = useState(false);
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const glassAvailable = useGlassAvailable();
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
         Platform.OS === 'ios' ? (
-          <TouchableOpacity onPress={() => navigation.navigate('AddServer')}>
-            <Text style={[styles.headerButton, isDark && styles.headerButtonDark]}>Add</Text>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('AddServer')}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Symbols.SymbolView
+              name="plus"
+              style={{ width: 22, height: 22 }}
+              tintColor={isDark ? '#0A84FF' : '#007AFF'}
+              weight="semibold"
+            />
           </TouchableOpacity>
         ) : null
       ),
@@ -47,7 +68,7 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       'Delete Server',
-      `Are you sure you want to remove "${server.name}"? This will not affect the remote ternssh deployment.`,
+      `Are you sure you want to remove "${server.name}"?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -94,16 +115,14 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
     }
   }, [navigation, handleDeleteServer]);
 
-  const renderRightActions = useCallback((server: TernsshServer) => {
-    return (
-      <TouchableOpacity
-        style={styles.swipeDeleteButton}
-        onPress={() => handleDeleteServer(server)}
-      >
-        <Text style={styles.swipeDeleteText}>Delete</Text>
-      </TouchableOpacity>
-    );
-  }, [handleDeleteServer]);
+  const renderRightActions = useCallback((server: TernsshServer) => (
+    <TouchableOpacity
+      style={styles.swipeDeleteButton}
+      onPress={() => handleDeleteServer(server)}
+    >
+      <Text style={styles.swipeDeleteText}>Delete</Text>
+    </TouchableOpacity>
+  ), [handleDeleteServer]);
 
   const renderServer = ({ item, index }: { item: TernsshServer; index: number }) => {
     const isFirst = index === 0;
@@ -134,7 +153,16 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
             </View>
           </View>
         </View>
-        <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
+        {Platform.OS === 'ios' ? (
+          <Symbols.SymbolView
+            name="chevron.right"
+            style={{ width: 14, height: 14, marginLeft: 8 }}
+            tintColor={isDark ? '#48484A' : '#C7C7CC'}
+            weight="semibold"
+          />
+        ) : (
+          <Text style={[styles.chevron, isDark && styles.chevronDark]}>›</Text>
+        )}
       </View>
     );
 
@@ -169,6 +197,69 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
     return pressable;
   };
 
+  const renderFloatingButton = () => {
+    const buttonContent = (
+      <>
+        {Platform.OS === 'ios' ? (
+          <Symbols.SymbolView
+            name="plus"
+            style={{ width: 24, height: 24 }}
+            tintColor="#FFFFFF"
+            weight="medium"
+          />
+        ) : (
+          <Text style={styles.fabIcon}>+</Text>
+        )}
+      </>
+    );
+
+    if (Platform.OS === 'ios' && glassAvailable) {
+      return (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('AddServer');
+          }}
+        >
+          <GlassView 
+            style={styles.glassFab} 
+            glassEffectStyle="regular"
+            isInteractive
+          >
+            {buttonContent}
+          </GlassView>
+        </Pressable>
+      );
+    }
+
+    if (Platform.OS === 'ios') {
+      return (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('AddServer');
+          }}
+        >
+          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.blurFab}>
+            {buttonContent}
+          </BlurView>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          navigation.navigate('AddServer');
+        }}
+      >
+        {buttonContent}
+      </Pressable>
+    );
+  };
+
   if (loading && servers.length === 0) {
     return (
       <View style={[styles.centerContainer, isDark && styles.containerDark]}>
@@ -198,15 +289,23 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🖥️</Text>
+              {Platform.OS === 'ios' ? (
+                <Symbols.SymbolView
+                  name="server.rack"
+                  style={{ width: 64, height: 64, marginBottom: 16 }}
+                  tintColor={isDark ? '#636366' : '#8E8E93'}
+                  weight="light"
+                />
+              ) : (
+                <Text style={styles.emptyIcon}>🖥️</Text>
+              )}
               <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Servers</Text>
               <Text style={[styles.emptyText, isDark && styles.textSecondaryDark]}>
-                Add a ternssh server to get started. You can connect to multiple ternssh deployments.
+                Add a ternssh server to get started.
               </Text>
               <Pressable
                 style={({ pressed }) => [
                   styles.addButton,
-                  Platform.OS === 'android' && styles.addButtonAndroid,
                   pressed && styles.addButtonPressed,
                 ]}
                 onPress={() => navigation.navigate('AddServer')}
@@ -216,20 +315,7 @@ export function ServersScreen({ navigation }: MainTabScreenProps<'Servers'>) {
             </View>
           }
         />
-        {Platform.OS === 'android' && servers.length > 0 && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.fab,
-              pressed && styles.fabPressed,
-            ]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate('AddServer');
-            }}
-          >
-            <Text style={styles.fabIcon}>+</Text>
-          </Pressable>
-        )}
+        {servers.length > 0 && renderFloatingButton()}
       </View>
     </GestureHandlerRootView>
   );
@@ -254,7 +340,7 @@ const styles = StyleSheet.create({
   },
   listContentIOS: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 8,
   },
   emptyContainer: {
     flex: 1,
@@ -311,49 +397,27 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 6,
   },
-  authBasic: {
-    backgroundColor: '#E3F2FD',
-  },
-  authBasicDark: {
-    backgroundColor: '#1E3A5F',
-  },
-  authAccess: {
-    backgroundColor: '#FFF3E0',
-  },
-  authAccessDark: {
-    backgroundColor: '#4A3728',
-  },
-  authNone: {
-    backgroundColor: '#F5F5F5',
-  },
-  authNoneDark: {
-    backgroundColor: '#2C2C2E',
-  },
+  authBasic: { backgroundColor: '#E3F2FD' },
+  authBasicDark: { backgroundColor: '#1E3A5F' },
+  authAccess: { backgroundColor: '#FFF3E0' },
+  authAccessDark: { backgroundColor: '#4A3728' },
+  authNone: { backgroundColor: '#F5F5F5' },
+  authNoneDark: { backgroundColor: '#2C2C2E' },
   authBadgeText: {
     fontSize: 12,
     fontWeight: '500',
     color: '#555555',
   },
-  authBadgeTextDark: {
-    color: '#AAAAAA',
-  },
+  authBadgeTextDark: { color: '#AAAAAA' },
   chevron: {
     fontSize: 22,
     color: '#C7C7CC',
     marginLeft: 8,
   },
-  chevronDark: {
-    color: '#48484A',
-  },
-  pressed: {
-    backgroundColor: '#E5E5EA',
-  },
-  textDark: {
-    color: '#FFFFFF',
-  },
-  textSecondaryDark: {
-    color: '#8E8E93',
-  },
+  chevronDark: { color: '#48484A' },
+  pressed: { backgroundColor: '#E5E5EA' },
+  textDark: { color: '#FFFFFF' },
+  textSecondaryDark: { color: '#8E8E93' },
   swipeDeleteButton: {
     backgroundColor: '#FF3B30',
     justifyContent: 'center',
@@ -392,14 +456,9 @@ const styles = StyleSheet.create({
     backgroundColor: Platform.select({ ios: '#007AFF', android: '#6200EE' }),
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: Platform.select({ ios: 10, android: 8 }),
+    borderRadius: Platform.select({ ios: 12, android: 8 }),
   },
-  addButtonAndroid: {
-    elevation: 2,
-  },
-  addButtonPressed: {
-    opacity: 0.8,
-  },
+  addButtonPressed: { opacity: 0.8 },
   addButtonText: {
     color: '#FFFFFF',
     fontSize: 17,
@@ -409,8 +468,27 @@ const styles = StyleSheet.create({
     color: '#007AFF',
     fontSize: 17,
   },
-  headerButtonDark: {
-    color: '#0A84FF',
+  headerButtonDark: { color: '#0A84FF' },
+  glassFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blurFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   fab: {
     position: 'absolute',

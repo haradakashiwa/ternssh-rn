@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, PlatformColor } from 'react-native';
+import { Platform } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -24,9 +24,9 @@ const LightTheme = {
     ...DefaultTheme.colors,
     primary: Platform.OS === 'ios' ? '#007AFF' : '#6200EE',
     background: Platform.OS === 'ios' ? '#F2F2F7' : '#FAFAFA',
-    card: '#FFFFFF',
+    card: Platform.OS === 'ios' ? 'transparent' : '#FFFFFF',
     text: '#000000',
-    border: Platform.OS === 'ios' ? '#C6C6C8' : '#E0E0E0',
+    border: Platform.OS === 'ios' ? 'transparent' : '#E0E0E0',
   },
 };
 
@@ -36,30 +36,25 @@ const CustomDarkTheme = {
     ...DarkTheme.colors,
     primary: Platform.OS === 'ios' ? '#0A84FF' : '#BB86FC',
     background: Platform.OS === 'ios' ? '#000000' : '#121212',
-    card: Platform.OS === 'ios' ? '#1C1C1E' : '#1E1E1E',
+    card: Platform.OS === 'ios' ? 'transparent' : '#1E1E1E',
     text: '#FFFFFF',
-    border: Platform.OS === 'ios' ? '#38383A' : '#2C2C2C',
+    border: Platform.OS === 'ios' ? 'transparent' : '#2C2C2C',
   },
 };
 
 function TabBarIcon({ name, focused }: { name: 'servers' | 'sessions' | 'settings'; focused: boolean }) {
   const iconMap = {
-    servers: { ios: 'server.rack', fallback: '🖥️' },
-    sessions: { ios: 'terminal', fallback: '📟' },
-    settings: { ios: 'gear', fallback: '⚙️' },
+    servers: 'server.rack',
+    sessions: 'terminal',
+    settings: 'gear',
   };
-
-  const icon = iconMap[name];
 
   if (Platform.OS === 'ios' && Symbols.SymbolView) {
     return (
       <Symbols.SymbolView
-        name={icon.ios as Symbols.SFSymbol}
+        name={iconMap[name] as Symbols.SFSymbol}
         style={{ width: 24, height: 24 }}
-        tintColor={focused 
-          ? (PlatformColor('systemBlue') as unknown as string)
-          : (PlatformColor('secondaryLabel') as unknown as string)
-        }
+        tintColor={focused ? '#007AFF' : '#8E8E93'}
         weight="medium"
       />
     );
@@ -85,14 +80,13 @@ function MainTabs() {
           ios: isDark ? '#0A84FF' : '#007AFF',
           android: isDark ? '#BB86FC' : '#6200EE',
         }),
-        tabBarInactiveTintColor: Platform.select({
-          ios: isDark ? '#8E8E93' : '#8E8E93',
-          android: isDark ? '#A0A0A0' : '#757575',
-        }),
+        tabBarInactiveTintColor: '#8E8E93',
         tabBarStyle: Platform.select({
           ios: {
-            backgroundColor: isDark ? '#1C1C1E' : '#F9F9F9',
-            borderTopColor: isDark ? '#38383A' : '#E5E5E5',
+            position: 'absolute',
+            backgroundColor: 'transparent',
+            borderTopWidth: 0,
+            elevation: 0,
           },
           android: {
             backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
@@ -101,20 +95,15 @@ function MainTabs() {
         }),
         headerLargeTitle: Platform.OS === 'ios',
         headerLargeTitleShadowVisible: false,
-        headerBlurEffect: Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined,
         headerTransparent: Platform.OS === 'ios',
+        headerBlurEffect: Platform.OS === 'ios' ? (isDark ? 'systemMaterialDark' : 'systemMaterial') : undefined,
         headerStyle: Platform.select({
-          ios: {},
+          ios: {
+            backgroundColor: 'transparent',
+          },
           android: {
             backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
             elevation: 0,
-          },
-        }),
-        headerTitleStyle: Platform.select({
-          ios: {},
-          android: {
-            fontSize: 20,
-            fontWeight: '500',
           },
         }),
         headerTintColor: Platform.select({
@@ -157,10 +146,12 @@ export function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerLargeTitleShadowVisible: false,
-          headerBlurEffect: Platform.OS === 'ios' ? (isDark ? 'dark' : 'light') : undefined,
           headerTransparent: Platform.OS === 'ios',
+          headerBlurEffect: Platform.OS === 'ios' ? (isDark ? 'systemMaterialDark' : 'systemMaterial') : undefined,
           headerStyle: Platform.select({
-            ios: {},
+            ios: {
+              backgroundColor: 'transparent',
+            },
             android: {
               backgroundColor: isDark ? '#1E1E1E' : '#FFFFFF',
               elevation: 0,
@@ -171,6 +162,11 @@ export function AppNavigator() {
             android: isDark ? '#BB86FC' : '#6200EE',
           }),
           animation: Platform.OS === 'ios' ? 'default' : 'slide_from_right',
+          contentStyle: {
+            backgroundColor: Platform.OS === 'ios' 
+              ? (isDark ? '#000000' : '#F2F2F7')
+              : (isDark ? '#121212' : '#FAFAFA'),
+          },
         }}
       >
         <Stack.Screen
@@ -185,6 +181,8 @@ export function AppNavigator() {
             title: 'Add Server',
             presentation: Platform.OS === 'ios' ? 'formSheet' : 'card',
             headerLargeTitle: false,
+            sheetGrabberVisible: Platform.OS === 'ios',
+            sheetCornerRadius: Platform.OS === 'ios' ? 20 : undefined,
           }}
         />
         <Stack.Screen
@@ -194,6 +192,8 @@ export function AppNavigator() {
             title: 'Edit Server',
             presentation: Platform.OS === 'ios' ? 'formSheet' : 'card',
             headerLargeTitle: false,
+            sheetGrabberVisible: Platform.OS === 'ios',
+            sheetCornerRadius: Platform.OS === 'ios' ? 20 : undefined,
           }}
         />
         <Stack.Screen
@@ -202,6 +202,9 @@ export function AppNavigator() {
           options={{
             title: 'SSH Hosts',
             headerLargeTitle: Platform.OS === 'ios',
+            headerSearchBarOptions: Platform.OS === 'ios' ? {
+              placeholder: 'Search hosts',
+            } : undefined,
           }}
         />
         <Stack.Screen
@@ -211,6 +214,8 @@ export function AppNavigator() {
             title: 'Add SSH Host',
             presentation: Platform.OS === 'ios' ? 'formSheet' : 'card',
             headerLargeTitle: false,
+            sheetGrabberVisible: Platform.OS === 'ios',
+            sheetCornerRadius: Platform.OS === 'ios' ? 20 : undefined,
           }}
         />
         <Stack.Screen
@@ -220,6 +225,8 @@ export function AppNavigator() {
             title: 'Edit SSH Host',
             presentation: Platform.OS === 'ios' ? 'formSheet' : 'card',
             headerLargeTitle: false,
+            sheetGrabberVisible: Platform.OS === 'ios',
+            sheetCornerRadius: Platform.OS === 'ios' ? 20 : undefined,
           }}
         />
         <Stack.Screen

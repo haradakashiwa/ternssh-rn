@@ -14,7 +14,10 @@ import {
   useColorScheme,
 } from 'react-native';
 import { Swipeable, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GlassView, isLiquidGlassAvailable, isGlassEffectAPIAvailable } from 'expo-glass-effect';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import * as Symbols from 'expo-symbols';
 import { useServers } from '../context/ServersContext';
 import type { RootStackScreenProps } from '../navigation/types';
 import type { TreeNode, SSHHost } from '../types';
@@ -28,6 +31,15 @@ interface FlattenedNode {
   isExpanded?: boolean;
   hasChildren?: boolean;
 }
+
+const useGlassAvailable = () => {
+  if (Platform.OS !== 'ios') return false;
+  try {
+    return isLiquidGlassAvailable() && isGlassEffectAPIAvailable();
+  } catch {
+    return false;
+  }
+};
 
 function flattenTree(
   nodes: TreeNode[],
@@ -69,6 +81,7 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
   const { servers, getApiClient } = useServers();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const glassAvailable = useGlassAvailable();
   
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,8 +123,16 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
       } : undefined,
       headerRight: () => (
         Platform.OS === 'ios' ? (
-          <TouchableOpacity onPress={() => navigation.navigate('AddSSHHost', { serverId })}>
-            <Text style={[styles.headerButton, isDark && styles.headerButtonDark]}>Add</Text>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('AddSSHHost', { serverId })}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Symbols.SymbolView
+              name="plus"
+              style={{ width: 22, height: 22 }}
+              tintColor={isDark ? '#0A84FF' : '#007AFF'}
+              weight="semibold"
+            />
           </TouchableOpacity>
         ) : null
       ),
@@ -220,6 +241,69 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
   ), [handleDeleteHost]);
 
   const flattenedTree = flattenTree(tree, 0, expandedGroups);
+
+  const renderFloatingButton = () => {
+    const buttonContent = (
+      <>
+        {Platform.OS === 'ios' ? (
+          <Symbols.SymbolView
+            name="plus"
+            style={{ width: 24, height: 24 }}
+            tintColor="#FFFFFF"
+            weight="medium"
+          />
+        ) : (
+          <Text style={styles.fabIcon}>+</Text>
+        )}
+      </>
+    );
+
+    if (Platform.OS === 'ios' && glassAvailable) {
+      return (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('AddSSHHost', { serverId });
+          }}
+        >
+          <GlassView 
+            style={styles.glassFab} 
+            glassEffectStyle="regular"
+            isInteractive
+          >
+            {buttonContent}
+          </GlassView>
+        </Pressable>
+      );
+    }
+
+    if (Platform.OS === 'ios') {
+      return (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('AddSSHHost', { serverId });
+          }}
+        >
+          <BlurView intensity={80} tint={isDark ? 'dark' : 'light'} style={styles.blurFab}>
+            {buttonContent}
+          </BlurView>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          navigation.navigate('AddSSHHost', { serverId });
+        }}
+      >
+        {buttonContent}
+      </Pressable>
+    );
+  };
 
   const renderItem = ({ item, index }: { item: FlattenedNode; index: number }) => {
     const paddingLeft = 16 + item.depth * 24;
@@ -364,17 +448,7 @@ export function SSHHostsScreen({ navigation, route }: RootStackScreenProps<'SSHH
             </View>
           }
         />
-        {Platform.OS === 'android' && flattenedTree.length > 0 && (
-          <Pressable
-            style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              navigation.navigate('AddSSHHost', { serverId });
-            }}
-          >
-            <Text style={styles.fabIcon}>+</Text>
-          </Pressable>
-        )}
+        {flattenedTree.length > 0 && renderFloatingButton()}
       </View>
     </GestureHandlerRootView>
   );
@@ -583,6 +657,27 @@ const styles = StyleSheet.create({
   },
   headerButtonDark: {
     color: '#0A84FF',
+  },
+  glassFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  blurFab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 100,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
   },
   fab: {
     position: 'absolute',
